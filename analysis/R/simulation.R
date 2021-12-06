@@ -19,10 +19,13 @@
 library(glmnet)
 library(parallel)  # mclapply
 
-SetOfStrings <- function(num_strings = 100) {
+SetOfSites <- function(num_sites = 100, proportion_https = 0.7, proportion_hsts_of_https = 0.3) {
   # Generates a set of strings for simulation purposes.
-  strs <- paste0("V_", as.character(1:num_strings))
-  strs
+  urls <- paste0("V_", as.character(1:num_sites), sample(c(".com", ".co.uk", ".fr"), num_sites, replace=TRUE))
+  https <- as.logical(rbinom(n=num_sites, size=1, prob=proportion_https))
+  sites <- data.frame(url=urls, https=https)
+  sites$hsts <- sites$https & as.logical(rbinom(n=num_sites, size=1, prob=proportion_hsts_of_https))
+  sites
 }
 
 GetSampleProbs <- function(params) {
@@ -31,14 +34,14 @@ GetSampleProbs <- function(params) {
   #    - params: a list describing the shape of the true distribution:
   #              c(num_strings, prop_nonzero_strings, decay_type,
   #                rate_exponetial).
-  nstrs <- params[[1]]
-  nonzero <- params[[2]]
-  decay <- params[[3]]
-  expo <- params[[4]]
-  background <- params[[5]]
+  nsites <- params[[1]]
+  nonzero <- params[[4]]
+  decay <- params[[5]]
+  expo <- params[[6]]
+  background <- params[[7]]
 
-  probs <- rep(0, nstrs)
-  ind <- floor(nstrs * nonzero)
+  probs <- rep(0, nsites)
+  ind <- floor(nsites * nonzero)
   if (decay == "Linear") {
     probs[1:ind] <- (ind:1) / sum(1:ind)
   } else if (decay == "Constant") {
@@ -133,7 +136,7 @@ CreateMap <- function(strs, params, generate_pos = TRUE, basic = FALSE) {
     colnames(map_by_cohort[[i]]) <- strs
   }
 
-  all_cohorts_map <- do.call("rBind", map_by_cohort)
+  all_cohorts_map <- do.call("rbind", map_by_cohort)
   if (generate_pos) {
     map_pos <- t(apply(all_cohorts_map, 2, function(x) {
       ind <- which(x == 1)
@@ -151,9 +154,9 @@ CreateMap <- function(strs, params, generate_pos = TRUE, basic = FALSE) {
        map_pos = map_pos)
 }
 
-GetSample <- function(N, strs, probs) {
+GetSample <- function(N, sites, probs) {
   # Sample for the strs population with distribution probs.
-  sample(strs, N, replace = TRUE, prob = probs)
+  sample(sites, N, replace = TRUE, prob = probs)
 }
 
 GetTrueBits <- function(samp, map, params) {
@@ -228,23 +231,25 @@ GenerateSamples <- function(N = 10^5, params, pop_params, alpha = .05,
                             correction = "Bonferroni") {
   # Simulate N reports with pop_params describing the population and
   # params describing the RAPPOR configuration.
-  num_strings = pop_params[[1]]
+  num_sites <- pop_params[[1]]
+  proportion_https <- pop_params[[2]]
+  proportion_hsts_of_https <- pop_params[[3]]
 
-  strs <- SetOfStrings(num_strings)
+  sites <- SetOfSites(num_sites, proportion_https, proportion_hsts_of_https)$url
   probs <- GetSampleProbs(pop_params)
-  samp <- GetSample(N, strs, probs)
-  map <- CreateMap(strs, params)
+  samp <- GetSample(N, sites, probs)
+  map <- CreateMap(sites, params)
   truth <- GetTrueBits(samp, map$map_by_cohort, params)
   rappors <- GetNoisyBits(truth, params)
 
-  strs_apprx <- strs
+  strs_apprx <- sites
   map_apprx <- map$all_cohorts_map
   # Remove % of strings to simulate missing variables.
   if (prop_missing > 0) {
     ind <- which(probs > 0)
     removed <- sample(ind, ceiling(prop_missing * length(ind)))
     map_apprx <- map$all_cohorts_map[, -removed]
-    strs_apprx <- strs[-removed]
+    strs_apprx <- sites[-removed]
   }
 
   # Randomize the columns.
@@ -261,7 +266,7 @@ GenerateSamples <- function(N = 10^5, params, pop_params, alpha = .05,
 
   fit$map <- map$map_by_cohort
   fit$truth <- truth
-  fit$strs <- strs
+  fit$strs <- sites
   fit$probs <- probs
 
   fit

@@ -34,7 +34,9 @@ shinyServer(function(input, output) {
   })
 
   PopParams <- reactive({
-    list(as.numeric(input$nstrs),
+    list(as.numeric(input$nsites),
+      as.numeric(input$nhttps),
+      as.numeric(input$nhsts),
       as.numeric(input$nonzero),
       input$decay,
       as.numeric(input$expo),
