@@ -49,6 +49,20 @@ shinyServer(function(input, output) {
          input$correction)
   })
 
+  Sample2 <- reactive({
+    input$sample
+    N <- input$N
+    params <- Params()
+    pop_params <- PopParams()
+    decoding_params <- DecodingParams()
+    prop_missing <- input$missing
+    fits <- GenerateSamples2(N, params, pop_params,
+      alpha = decoding_params[[1]],
+      correction = decoding_params[[2]],
+      prop_missing = prop_missing)
+    fits
+  })
+
   Sample <- reactive({
     input$sample
     N <- input$N
@@ -57,9 +71,9 @@ shinyServer(function(input, output) {
     decoding_params <- DecodingParams()
     prop_missing <- input$missing
     fit <- GenerateSamples(N, params, pop_params,
-                    alpha = decoding_params[[1]],
-                    correction = decoding_params[[2]],
-                    prop_missing = prop_missing)
+      alpha = decoding_params[[1]],
+      correction = decoding_params[[2]],
+      prop_missing = prop_missing)
     fit
   })
 
@@ -67,19 +81,22 @@ shinyServer(function(input, output) {
   output$pr <- renderTable({
     Sample()$summary
   },
-                           include.rownames = FALSE, include.colnames = FALSE)
+  include.rownames = FALSE,
+  include.colnames = FALSE)
 
   # Results table.
   output$tab <- renderDataTable({
      Sample()$fit
    },
-                                options = list(iDisplayLength = 100))
+  options = list(iDisplayLength = 100))
 
   # Epsilon.
   output$epsilon <- renderTable({
     Sample()$privacy
   },
-                                include.rownames = FALSE, include.colnames = FALSE, digits = 4)
+  include.rownames = FALSE,
+  include.colnames = FALSE,
+  digits = 4)
 
   # True distribution.
   output$probs <- renderPlot({
@@ -88,6 +105,21 @@ shinyServer(function(input, output) {
     detected <- match(samp$fit[, 1], samp$strs)
     detection_frequency <- samp$privacy[7, 2]
     PlotPopulation(probs, detected, detection_frequency)
+  })
+
+
+  output$hsts <- renderPlot({
+    # todo: what?
+    hsts <- Sample2()$hsts
+    nohttps <- Sample2()$nohttps
+    sites <- Sample2()$sites
+    for (site in sites$url) {
+      print(site)
+    }
+    print(hsts$fit[, 1])
+    print(nohttps$fit[, 1])
+    truth <- Sample()$truth
+    Plot(truth[, -1, drop = FALSE], color = "darkblue")
   })
 
   # True bits patterns.
