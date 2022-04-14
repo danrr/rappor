@@ -100,26 +100,17 @@ shinyServer(function(input, output) {
 
   # True distribution.
   output$probs <- renderPlot({
-    samp <- Sample()
-    probs <- samp$probs
-    detected <- match(samp$fit[, 1], samp$strs)
-    detection_frequency <- samp$privacy[7, 2]
-    PlotPopulation(probs, detected, detection_frequency)
-  })
-
-
-  output$hsts <- renderPlot({
-    # todo: what?
-    hsts <- Sample2()$hsts
-    nohttps <- Sample2()$nohttps
-    sites <- Sample2()$sites
-    for (site in sites$url) {
-      print(site)
+    samp <- Sample2()
+    probs <- samp$hsts$probs
+    # todo Dan: highlighting is incorrect? Why do 0 frequency sites show up?
+    detected <- match(intersect(samp$hsts$fit[, 1], samp$hsts$strs_hsts), samp$hsts$strs)
+    detected_fp <- match(intersect(samp$hsts$fit[, 1], samp$nohttps$strs_nohttps), samp$hsts$strs)
+    detected_nohttps <- NULL
+    if (!is.null(samp$nohttps)) {
+      detected_nohttps <- match(samp$nohttps$fit[, 1], samp$hsts$strs)
     }
-    print(hsts$fit[, 1])
-    print(nohttps$fit[, 1])
-    truth <- Sample()$truth
-    Plot(truth[, -1, drop = FALSE], color = "darkblue")
+    detection_frequency <- samp$hsts$privacy[7, 2]
+    PlotPopulation(probs, detected, detected_fp, detected_nohttps, detection_frequency)
   })
 
   # True bits patterns.

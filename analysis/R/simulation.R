@@ -123,7 +123,7 @@ CreateMap <- function(strs, params, generate_pos = TRUE, basic = FALSE) {
   map_by_cohort <- list()
   k <- params$k # size of the bloom filter instance
   h <- params$h # number of hash functions
-  m <- params$m # number of cohors
+  m <- params$m # number of cohorts
   for (i in 1:m) {
     if (basic && (h == 1) && (k == M)) {
       ones <- 1:M
@@ -210,7 +210,7 @@ GetNoisyBits <- function(truth, params) {
     # Lies when there is no signal which happens x[1] - x[-1] times.
     lied_nosignal <- rbinom(k, x[1] - x[-1], f)
 
-    # Trtuh when there's no signal. These are sampled with p.
+    # Truth when there's no signal. These are sampled with p.
     truth_nosignal <- x[1] - x[-1] - lied_nosignal
 
     # Total lies and sampling lies with 50/50 for either p or q.
@@ -251,68 +251,80 @@ GenerateSamples2 <- function(N = 10^5, params, pop_params, alpha = .05,
   samp_hsts <- samp[samp$hsts == 1,]$url # Selects sampled sites that have hsts
   samp_nohttps <- samp[samp$https == 0,]$url # Selects sampled sites that have nohttps
 
-  sites_hsts <- sites[sites$hsts == 1,]$url # Selects sites that have hsts
-  sites_nohttps <- sites[sites$https == 0,]$url # Selects sites that are nohttps
+  strs_hsts <- sites[sites$hsts == 1,]$url # Selects sites that have hsts
+  strs_nohttps <- sites[sites$https == 0,]$url # Selects sites that are nohttps
+
 
   # hsts
-  map_hsts <- CreateMap(sites_hsts, params) # creates a random map of sites
-  # todo?: extend with all websites and 0 values?
+  map_hsts <- CreateMap(strs_hsts, params) # creates a random map of sites
   truth_hsts <- GetTrueBits(samp_hsts, map_hsts$map_by_cohort, params) # creates true bloom filter per cohort; first column counts total per row
   rappors_hsts <- GetNoisyBits(truth_hsts, params) # creates noisy bloom filter per cohort; first column counts total per row BEFORE NOISE
 
   # nohttps
-  map_nohttps <- CreateMap(sites_nohttps, params)
+  map_nohttps <- CreateMap(strs_nohttps, params)
   truth_nohttps <- GetTrueBits(samp_nohttps, map_nohttps$map_by_cohort, params)
   rappors_nohttps <- GetNoisyBits(truth_nohttps, params)
 
-  strs_hsts_apprx <- sites_hsts
+  strs_hsts_apprx <- strs_hsts
   map_hsts_apprx <- map_hsts$all_cohorts_map
   # Remove % of strings to simulate missing variables.
   if (prop_missing > 0) {
     ind <- which(probs > 0)
     removed <- sample(ind, ceiling(prop_missing * length(ind)))
     map_hsts_apprx <- map_hsts$all_cohorts_map[, -removed]
-    strs_hsts_apprx <- sites_hsts[-removed]
+    strs_hsts_apprx <- strs_hsts[-removed]
   }
-  strs_nohttps_apprx <- sites_nohttps
+  strs_nohttps_apprx <- strs_nohttps
   map_nohttps_apprx <- map_nohttps$all_cohorts_map
   # Remove % of strings to simulate missing variables.
   if (prop_missing > 0) {
     ind <- which(probs > 0)
     removed <- sample(ind, ceiling(prop_missing * length(ind)))
     map_nohttps_apprx <- map_nohttps$all_cohorts_map[, -removed]
-    strs_nohttps_apprx <- sites_nohttps[-removed]
+    strs_nohttps_apprx <- strs_nohttps[-removed]
   }
+  
 
   # Randomize the columns.
   ind <- sample(1:length(strs_hsts_apprx), length(strs_hsts_apprx))
   map_hsts_apprx <- map_hsts_apprx[, ind]
 
-  fit_hsts <- Decode(rappors_hsts, map_hsts_apprx, params, alpha = alpha,
-                     correction = correction)
-
   # Randomize the columns.
   ind <- sample(1:length(strs_nohttps_apprx), length(strs_nohttps_apprx))
   map_nohttps_apprx <- map_nohttps_apprx[, ind]
+  
+  # merge maps map_hsts + map_nohttps
+  map_merged <- cbind(map_hsts_apprx, map_nohttps_apprx)
+  fit_hsts <- Decode(rappors_hsts, map_merged, params, alpha = alpha,
+                     correction = correction)
 
-  fit_nohttps <- Decode(rappors_nohttps, map_nohttps_apprx, params, alpha = alpha,
-                correction = correction)
+  hsts_fp <-strs_nohttps[na.omit(match(fit_hsts$fit[, 1], strs_nohttps))]
+
 
   # Add truth column.
   fit_hsts$fit$Truth <- table(samp_hsts)[fit_hsts$fit$string]
   fit_hsts$fit$Truth[is.na(fit_hsts$fit$Truth)] <- 0
-  fit_nohttps$fit$Truth <- table(samp_nohttps)[fit_nohttps$fit$string]
-  fit_nohttps$fit$Truth[is.na(fit_nohttps$fit$Truth)] <- 0
 
   fit_hsts$map <- map_hsts$map_by_cohort
   fit_hsts$truth <- truth_hsts
-  fit_hsts$strs <- sites_hsts
+  fit_hsts$strs <- sites$url
+  fit_hsts$strs_hsts <- strs_hsts
   fit_hsts$probs <- probs
 
-  fit_nohttps$map <- map_nohttps$map_by_cohort
-  fit_nohttps$truth <- truth_nohttps
-  fit_nohttps$strs <- sites_nohttps
-  fit_nohttps$probs <- probs
+  # Can we identify false positives as part of the rappors_nohttps?
+  map_fp_apprx <- as(map_nohttps_apprx[, hsts_fp, drop=FALSE], "sparseMatrix")
+  fit_nohttps <- NULL
+  if(ncol(map_fp_apprx) != 0) {
+    # todo Dan: I don't think this is quite right, since it detects the FP too frequently?
+    fit_nohttps <- Decode(rappors_nohttps, map_fp_apprx, params, alpha = alpha,
+                  correction = correction)
+    fit_nohttps$fit$Truth <- table(samp_nohttps)[fit_nohttps$fit$string]
+    fit_nohttps$fit$Truth[is.na(fit_nohttps$fit$Truth)] <- 0
+
+    fit_nohttps$map <- map_nohttps$map_by_cohort
+    fit_nohttps$truth <- truth_nohttps
+    fit_nohttps$strs_nohttps <- strs_nohttps
+  }
   fits <- list("hsts" = fit_hsts, "nohttps" = fit_nohttps, "sites" = sites)
   fits
 }
@@ -322,7 +334,7 @@ GenerateSamples2 <- function(N = 10^5, params, pop_params, alpha = .05,
 #          p = 0.5,
 #          q = 0.75,
 #          f = 0.5)
-# popParams <- list(300, #nsites
+# pop_params <- list(300, #nsites
 #       0.7, #nhttps
 #       0.3, #nhsts
 #       0.5, #nonzero

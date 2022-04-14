@@ -81,7 +81,6 @@ shinyUI(pageWithSidebar(
                                      )),
                         mainPanel(
                                   tabsetPanel(
-                                              # tabPanel("HSTS", plotOutput("hsts", height = "600px")),
                                               tabPanel("Life of a  Report",
                                                        actionButton("new_user", "New Participant"),
                                                        actionButton("new_value", "New Value"),
