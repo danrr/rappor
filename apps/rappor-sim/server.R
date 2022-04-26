@@ -49,6 +49,10 @@ shinyServer(function(input, output) {
          input$correction)
   })
 
+  Sample <- reactive({
+    Sample2()$hsts
+  })
+
   Sample2 <- reactive({
     input$sample
     N <- input$N
@@ -56,25 +60,11 @@ shinyServer(function(input, output) {
     pop_params <- PopParams()
     decoding_params <- DecodingParams()
     prop_missing <- input$missing
-    fits <- GenerateSamples2(N, params, pop_params,
+    fits <- GenerateSamples(N, params, pop_params,
       alpha = decoding_params[[1]],
       correction = decoding_params[[2]],
       prop_missing = prop_missing)
     fits
-  })
-
-  Sample <- reactive({
-    input$sample
-    N <- input$N
-    params <- Params()
-    pop_params <- PopParams()
-    decoding_params <- DecodingParams()
-    prop_missing <- input$missing
-    fit <- GenerateSamples(N, params, pop_params,
-      alpha = decoding_params[[1]],
-      correction = decoding_params[[2]],
-      prop_missing = prop_missing)
-    fit
   })
 
   # Results summary.
@@ -102,12 +92,11 @@ shinyServer(function(input, output) {
   output$probs <- renderPlot({
     samp <- Sample2()
     probs <- samp$hsts$probs
-    # todo Dan: highlighting is incorrect? Why do 0 frequency sites show up?
-    detected <- match(intersect(samp$hsts$fit[, 1], samp$hsts$strs_hsts), samp$hsts$strs)
-    detected_fp <- match(intersect(samp$hsts$fit[, 1], samp$nohttps$strs_nohttps), samp$hsts$strs)
+    detected <- match(intersect(samp$hsts$fit[, 1], samp$hsts$strs), samp$hsts$strs_full)
+    detected_fp <- match(intersect(samp$hsts$fit[, 1], samp$nohttps$strs_nohttps), samp$hsts$strs_full)
     detected_nohttps <- NULL
     if (!is.null(samp$nohttps)) {
-      detected_nohttps <- match(samp$nohttps$fit[, 1], samp$hsts$strs)
+      detected_nohttps <- match(samp$nohttps$fit[, 1], samp$hsts$strs_full)
     }
     detection_frequency <- samp$hsts$privacy[7, 2]
     PlotPopulation(probs, detected, detected_fp, detected_nohttps, detection_frequency)

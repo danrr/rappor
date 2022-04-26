@@ -224,16 +224,8 @@ GetNoisyBits <- function(truth, params) {
 
   cbind(truth[, 1], t(rappors))
 }
-#
-GenerateSamples<- function(N = 10^5, params, pop_params, alpha = .05,
-                            prop_missing = 0,
-                            correction = "Bonferroni") {
-  fits <- GenerateSamples2(N, params, pop_params, alpha, prop_missing, correction)
-  fit <- fits$hsts
-  fit
-}
 
-GenerateSamples2 <- function(N = 10^5, params, pop_params, alpha = .05,
+GenerateSamples <- function(N = 10^5, params, pop_params, alpha = .05,
                             prop_missing = 0,
                             correction = "Bonferroni") {
   # Simulate N reports with pop_params describing the population and
@@ -307,8 +299,8 @@ GenerateSamples2 <- function(N = 10^5, params, pop_params, alpha = .05,
 
   fit_hsts$map <- map_hsts$map_by_cohort
   fit_hsts$truth <- truth_hsts
-  fit_hsts$strs <- sites$url
-  fit_hsts$strs_hsts <- strs_hsts
+  fit_hsts$strs_full <- sites$url
+  fit_hsts$strs <- strs_hsts
   fit_hsts$probs <- probs
 
   # Can we identify false positives as part of the rappors_nohttps?
