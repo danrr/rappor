@@ -100,7 +100,7 @@ shinyServer(function(input, output) {
   output$probs <- renderPlot({
     samp <- Sample2()
     probs <- samp$hsts$probs
-    of_interest <- match(c(samp$no_https$strs, samp$hsts$strs), samp$hsts$strs_full)
+    of_interest <- match(samp$hsts$strs, samp$hsts$strs_full)
     detected <- match(intersect(samp$hsts$found, samp$hsts$strs), samp$hsts$strs_full)
     detected_fp <- match(intersect(samp$hsts$found, samp$nohttps$strs_nohttps), samp$hsts$strs_full)
     detected_nohttps <- NULL
