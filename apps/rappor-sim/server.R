@@ -45,8 +45,7 @@ shinyServer(function(input, output) {
   })
 
   DecodingParams <- reactive({
-    list(as.numeric(input$alpha),
-         input$correction)
+    as.numeric(input$threshold)
   })
 
   Sample <- reactive({
@@ -58,11 +57,10 @@ shinyServer(function(input, output) {
     N <- input$N
     params <- Params()
     pop_params <- PopParams()
-    decoding_params <- DecodingParams()
+    threshold <- DecodingParams()
     prop_missing <- input$missing
     fits <- GenerateSamples(N, params, pop_params,
-      alpha = decoding_params[[1]],
-      correction = decoding_params[[2]],
+      threshold = threshold,
       prop_missing = prop_missing)
     fits
   })
@@ -74,12 +72,22 @@ shinyServer(function(input, output) {
   include.rownames = FALSE,
   include.colnames = FALSE)
 
+  output$pr2 <- renderTable({
+    Sample2()$nohttps$summary
+  },
+  include.rownames = FALSE,
+  include.colnames = FALSE)
+
   # Results table.
   output$tab <- renderDataTable({
-     Sample()$fit
+     Sample2()$hsts$fit
    },
   options = list(iDisplayLength = 100))
 
+  output$tab2 <- renderDataTable({
+     Sample2()$nohttps$fit
+   },
+  options = list(iDisplayLength = 100))
   # Epsilon.
   output$epsilon <- renderTable({
     Sample()$privacy
@@ -92,14 +100,15 @@ shinyServer(function(input, output) {
   output$probs <- renderPlot({
     samp <- Sample2()
     probs <- samp$hsts$probs
-    detected <- match(intersect(samp$hsts$fit[, 1], samp$hsts$strs), samp$hsts$strs_full)
-    detected_fp <- match(intersect(samp$hsts$fit[, 1], samp$nohttps$strs_nohttps), samp$hsts$strs_full)
+    of_interest <- match(c(samp$no_https$strs, samp$hsts$strs), samp$hsts$strs_full)
+    detected <- match(intersect(samp$hsts$found, samp$hsts$strs), samp$hsts$strs_full)
+    detected_fp <- match(intersect(samp$hsts$found, samp$nohttps$strs_nohttps), samp$hsts$strs_full)
     detected_nohttps <- NULL
     if (!is.null(samp$nohttps)) {
-      detected_nohttps <- match(samp$nohttps$fit[, 1], samp$hsts$strs_full)
+      detected_nohttps <- match(samp$nohttps$found, samp$hsts$strs_full)
     }
     detection_frequency <- samp$hsts$privacy[7, 2]
-    PlotPopulation(probs, detected, detected_fp, detected_nohttps, detection_frequency)
+    PlotPopulation(probs, of_interest, detected, detected_fp, detected_nohttps, detection_frequency)
   })
 
   # True bits patterns.

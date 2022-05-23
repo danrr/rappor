@@ -104,101 +104,7 @@ EstimateBloomCounts <- function(params, obs_counts) {
   list(estimates = ests, stds = stds)
 }
 
-FitLasso <- function(X, Y, intercept = TRUE) {
-  # Fits a Lasso model to select a subset of columns of X.
-  #
-  # Input:
-  #    X: a design matrix of size km by M (the number of candidate strings).
-  #    Y: a vector of size km with estimated counts from EstimateBloomCounts().
-  #    intercept: whether to fit with intercept or not.
-  #
-  # Output:
-  #    a vector of size ncol(X) of coefficients.
-
-  # TODO(mironov): Test cv.glmnet instead of glmnet
-  mod <- try(glmnet(X, Y, standardize = FALSE, intercept = intercept,
-                    lower.limits = 0,  # outputs are non-negative
-                    # Cap the number of non-zero coefficients to 500 or
-                    # 80% of the length of Y, whichever is less. The 500 cap
-                    # is for performance reasons, 80% is to avoid overfitting.
-                    pmax = min(500, length(Y) * .8)),
-             silent = TRUE)
-
-  # If fitting fails, return an empty data.frame.
-  if (class(mod)[1] == "try-error") {
-    coefs <- setNames(rep(0, ncol(X)), colnames(X))
-  } else {
-    coefs <- coef(mod)
-    coefs <- coefs[-1, ncol(coefs), drop = FALSE]  # coefs[1] is the intercept
-  }
-  coefs
-}
-
-PerformInference <- function(X, Y, N, mod, params, alpha, correction) {
-  m <- params$m
-  p <- params$p
-  q <- params$q
-  f <- params$f
-  h <- params$h
-
-  q2 <- .5 * f * (p + q) + (1 - f) * q
-  p2 <- .5 * f * (p + q) + (1 - f) * p
-  resid_var <- p2 * (1 - p2) * (N / m) / (q2 - p2)^2
-
-  # Total Sum of Squares (SS).
-  TSS <- sum((Y - mean(Y))^2)
-  # Error Sum of Squares (ESS).
-  ESS <- resid_var * nrow(X)
-
-  betas <- matrix(mod$coefs, ncol = 1)
-
-#   mod_var <- summary(mod$fit)$sigma^2
-#   betas_sd <- rep(sqrt(max(resid_var, mod_var) / (m * h)), length(betas))
-#
-#   z_values <- betas / betas_sd
-#
-#   # 1-sided t-test.
-#   p_values <- pnorm(z_values, lower = FALSE)
-
-  fit <- data.frame(string = colnames(X), Estimate = betas,
-                    SD = mod$stds, # z_stat = z_values, pvalue = p_values,
-                    stringsAsFactors = FALSE)
-
-#   if (correction == "FDR") {
-#     fit <- fit[order(fit$pvalue, decreasing = FALSE), ]
-#     ind <- which(fit$pvalue < (1:nrow(fit)) * alpha / nrow(fit))
-#     if (length(ind) > 0) {
-#       fit <- fit[1:max(ind), ]
-#     } else {
-#       fit <- fit[numeric(0), ]
-#     }
-#   } else {
-#     fit <- fit[fit$p < alpha, ]
-#   }
-
-  fit <- fit[order(fit$Estimate, decreasing = TRUE), ]
-
-  if (nrow(fit) > 0) {
-    str_names <- fit$string
-    str_names <- str_names[!is.na(str_names)]
-    if (length(str_names) > 0 && length(str_names) < nrow(X)) {
-      this_data <- as.data.frame(as.matrix(X[, str_names]))
-      Y_hat <- predict(lm(Y ~ ., data = this_data))
-      RSS <- sum((Y_hat - mean(Y))^2)
-    } else {
-      RSS <- NA
-    }
-  } else {
-    RSS <- 0
-  }
-
-  USS <- TSS - ESS - RSS
-  SS <- c(RSS, USS, ESS) / TSS
-
-  list(fit = fit, SS = SS, resid_sigma = sqrt(resid_var))
-}
-
-ComputePrivacyGuarantees <- function(params, alpha, N) {
+ComputePrivacyGuarantees <- function(params, N) {
   # Compute privacy parameters and guarantees.
   p <- params$p
   q <- params$q
@@ -217,99 +123,13 @@ ComputePrivacyGuarantees <- function(params, alpha, N) {
   exp_e_inf <- ((1 - .5 * f) / (.5 * f))^(2 * h)
   e_inf <- log(exp_e_inf)
 
-  std_dev_counts <- sqrt(p2 * (1 - p2) * N) / (q2 - p2)
-  detection_freq <- qnorm(1 - alpha) * std_dev_counts / N
-
   privacy_names <- c("Effective p", "Effective q", "exp(e_1)",
-                     "e_1", "exp(e_inf)", "e_inf", "Detection frequency")
-  privacy_vals <- c(p2, q2, exp_e_one, e_one, exp_e_inf, e_inf, detection_freq)
+                     "e_1", "exp(e_inf)", "e_inf")
+  privacy_vals <- c(p2, q2, exp_e_one, e_one, exp_e_inf, e_inf)
 
   privacy <- data.frame(parameters = privacy_names,
                         values = privacy_vals)
   privacy
-}
-
-FitDistribution <- function(estimates_stds, map, quiet = FALSE) {
-  # Find a distribution over rows of map that approximates estimates_stds best
-  #
-  # Input:
-  #   estimates_stds: a list of two m x k matrices, one for estimates, another
-  #                   for standard errors
-  #   map           : an (m * k) x S boolean matrix
-  #
-  # Output:
-  #   a float vector of length S, so that a distribution over map's rows sampled
-  #   according to this vector approximates estimates
-
-  S <- ncol(map)  # total number of candidates
-
-  support_coefs <- 1:S
-
-  if (S > length(estimates_stds$estimates) * .8) {
-    # the system is close to being underdetermined
-    lasso <- FitLasso(map, as.vector(t(estimates_stds$estimates)))
-
-    # Select non-zero coefficients.
-    support_coefs <- which(lasso > 0)
-
-    if(!quiet)
-      cat("LASSO selected ", length(support_coefs), " non-zero coefficients.\n")
-  }
-
-  coefs <- setNames(rep(0, S), colnames(map))
-
-  if(length(support_coefs) > 0) {  # LASSO may return an empty list
-    constrained_coefs <- ConstrainedLinModel(map[, support_coefs, drop = FALSE],
-                                             estimates_stds)
-
-    coefs[support_coefs] <- constrained_coefs
-  }
-
-  coefs
-}
-
-Resample <- function(e) {
-  # Simulate resampling of the Bloom filter estimates by adding Gaussian noise
-  # with estimated standard deviation.
-  estimates <- matrix(mapply(function(x, y) x + rnorm(1, 0, y),
-                             e$estimates, e$stds),
-                             nrow = nrow(e$estimates), ncol = ncol(e$estimates))
-  stds <- e$stds * 2^.5
-
-  list(estimates = estimates, stds = stds)
-}
-
-# Private function
-# Decode for Boolean RAPPOR inputs
-# Returns a list with attribute fit only. (Inference and other aspects
-# currently not incorporated because they're unnecessary for association.)
-.DecodeBoolean <- function(counts, params, num_reports) {
-  # Boolean variables are reported without cohorts and to estimate counts,
-  # first sum up counts across all cohorts and then run EstimateBloomCounts
-  # with the number of cohorts set to 1.
-  params$m <- 1  # set number of cohorts to 1
-  summed_counts <- colSums(counts)  # sum counts across cohorts
-  es <- EstimateBloomCounts(params, summed_counts)  # estimate boolean counts
-
-  ests <- es$estimates[[1]]
-  std <- es$stds[[1]]
-
-  fit <- data.frame(
-           string         = c("TRUE", "FALSE"),
-           estimate       = c(ests * num_reports,
-                              num_reports - ests * num_reports),
-           std_error      = c(std * num_reports, std * num_reports),
-           proportion     = c(ests, 1 - ests),
-           prop_std_error = c(std, std))
-
-  low_95 <- fit$proportion - 1.96 * fit$prop_std_error
-  high_95 <- fit$proportion + 1.96 * fit$prop_std_error
-
-  fit$prop_low_95 <- pmax(low_95, 0.0)
-  fit$prop_high_95 <- pmin(high_95, 1.0)
-  rownames(fit) <- fit$string
-
-  return(list(fit = fit))
 }
 
 CheckDecodeInputs <- function(counts, map, params) {
@@ -337,8 +157,7 @@ CheckDecodeInputs <- function(counts, map, params) {
   return(NULL)  # no error
 }
 
-Decode <- function(counts, map, params, alpha = 0.05,
-                   correction = c("Bonferroni"), quiet = FALSE, ...) {
+Decode <- function(counts, map, params, threshold, quiet = FALSE, ...) {
 
   error_msg <- CheckDecodeInputs(counts, map, params)
   if (!is.null(error_msg)) {
@@ -355,9 +174,6 @@ Decode <- function(counts, map, params, alpha = 0.05,
   S <- ncol(map)  # total number of candidates
 
   N <- sum(counts[, 1])
-  if (k == 1) {
-    return(.DecodeBoolean(counts, params, N))
-  }
 
   filter_cohorts <- which(counts[, 1] != 0)  # exclude cohorts with zero reports
 
@@ -372,103 +188,44 @@ Decode <- function(counts, map, params, alpha = 0.05,
     list(estimates = es$estimates[filter_cohorts, , drop = FALSE],
          stds = es$stds[filter_cohorts, , drop = FALSE])
 
-  coefs_all <- vector()
+  answers <- t(apply(map_filtered, 2, function(all_cohorts) {
+    split_cohorts <- split(all_cohorts, ceiling(seq_along(all_cohorts)/k))
+    answer <- rep(FALSE, length(split_cohorts))
+    estimates_stds_filtered$estimates
+    
+    for (i in 1:length(split_cohorts)) {
+      estimate_counts <- estimates_stds_filtered$estimates[i,]
+      estimate_std <- estimates_stds_filtered$std[i,]
+      cohort <- split_cohorts[i]
+      answer[i] <- all(estimate_counts[unlist(cohort)] > threshold) # Todo Dan: show confidence using estimate_std
+    }
+    answer <- append(answer, sum(answer) > m / 2)
+    answer
+  }))
+  answers <- cbind(colnames(map), data.frame(answers))
+  colnames(answers) <- c("Site", paste("Cohort ", filter_cohorts), "Decision")
 
-  # Run the fitting procedure several times (5 seems to be sufficient and not
-  # too many) to estimate standard deviation of the output.
-  for(r in 1:5) {
-    if(r > 1)
-      e <- Resample(estimates_stds_filtered)
-    else
-      e <- estimates_stds_filtered
-
-    coefs_all <- rbind(coefs_all,
-                       FitDistribution(e, map_filtered,  quiet))
-  }
-
-  coefs_ssd <- N * apply(coefs_all, 2, sd)  # compute sample standard deviations
-  coefs_ave <- N * apply(coefs_all, 2, mean)
-
-  # Only select coefficients more than two standard deviations from 0. May
-  # inflate empirical SD of the estimates.
-  reported <- which(coefs_ave > 1E-6 + 2 * coefs_ssd)
-
-  mod <- list(coefs = coefs_ave[reported], stds = coefs_ssd[reported])
-
-  coefs_ave_zeroed <- coefs_ave
-  coefs_ave_zeroed[-reported] <- 0
-
-  residual <- as.vector(t(estimates_stds_filtered$estimates)) -
-    map_filtered %*% coefs_ave_zeroed / N
-
-  if (correction == "Bonferroni") {
-    alpha <- alpha / S
-  }
-
-  inf <- PerformInference(map_filtered[, reported, drop = FALSE],
-                          as.vector(t(estimates_stds_filtered$estimates)),
-                          N, mod, params, alpha,
-                          correction)
-  fit <- inf$fit
-  # If this is a basic RAPPOR instance, just use the counts for the estimate
-  #     (Check if the map is diagonal to tell if this is basic RAPPOR.)
-  if (sum(map) == sum(diag(map))) {
-    fit$Estimate <- colSums(counts)[-1]
-  }
-
-  # Estimates from the model are per instance so must be multipled by h.
-  # Standard errors are also adjusted.
-  fit$estimate <- floor(fit$Estimate)
-  fit$proportion <- fit$estimate / N
-
-  fit$std_error <- floor(fit$SD)
-  fit$prop_std_error <- fit$std_error / N
-
-  # 1.96 standard deviations gives 95% confidence interval.
-  low_95 <- fit$proportion - 1.96 * fit$prop_std_error
-  high_95 <- fit$proportion + 1.96 * fit$prop_std_error
-  # Clamp estimated proportion.  pmin/max: vectorized min and max
-  fit$prop_low_95 <- pmax(low_95, 0.0)
-  fit$prop_high_95 <- pmin(high_95, 1.0)
-
-  fit <- fit[, c("string", "estimate", "std_error", "proportion",
-                 "prop_std_error", "prop_low_95", "prop_high_95")]
-
-  allocated_mass <- sum(fit$proportion)
-  num_detected <- nrow(fit)
-
-  ss <- round(inf$SS, digits = 3)
-  explained_var <- ss[[1]]
-  missing_var <- ss[[2]]
-  noise_var <- ss[[3]]
-
-  noise_std_dev <- round(inf$resid_sigma, digits = 3)
+  num_detected <- sum(answers$Decision)
 
   # Compute summary of the fit.
   parameters <-
       c("Candidate strings", "Detected strings",
-        "Sample size (N)", "Discovered Prop (out of N)",
-        "Explained Variance", "Missing Variance", "Noise Variance",
-        "Theoretical Noise Std. Dev.")
-  values <- c(S, num_detected, N, allocated_mass,
-              explained_var, missing_var, noise_var, noise_std_dev)
+        "Sample size (N)")
+  values <- c(S, num_detected, N)
 
   res_summary <- data.frame(parameters = parameters, values = values)
 
-  privacy <- ComputePrivacyGuarantees(params, alpha, N)
+  privacy <- ComputePrivacyGuarantees(params, N)
   params <- data.frame(parameters =
-                       c("k", "h", "m", "p", "q", "f", "N", "alpha"),
-                       values = c(k, h, m, p, q, f, N, alpha))
+                       c("k", "h", "m", "p", "q", "f", "N"),
+                       values = c(k, h, m, p, q, f, N))
 
   # This is a list of decode stats in a better format than 'summary'.
   metrics <- list(sample_size = N,
-                  allocated_mass = allocated_mass,
-                  num_detected = num_detected,
-                  explained_var = explained_var,
-                  missing_var = missing_var)
+                  num_detected = num_detected)
 
-  list(fit = fit, summary = res_summary, privacy = privacy, params = params,
-       lasso = NULL, residual = as.vector(residual),
+  list(fit = answers, found = answers$Site[answers$Decision], summary = res_summary, privacy = privacy, params = params,
+       lasso = NULL, residual = NULL,
        counts = counts[, -1], resid = NULL, metrics = metrics,
        ests = es$estimates  # ests needed by Shiny rappor-sim app      
   )

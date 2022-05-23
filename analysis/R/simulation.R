@@ -225,9 +225,7 @@ GetNoisyBits <- function(truth, params) {
   cbind(truth[, 1], t(rappors))
 }
 
-GenerateSamples <- function(N = 10^5, params, pop_params, alpha = .05,
-                            prop_missing = 0,
-                            correction = "Bonferroni") {
+GenerateSamples <- function(N = 10^5, params, pop_params, threshold = .02, prop_missing = 0) {
   # Simulate N reports with pop_params describing the population and
   # params describing the RAPPOR configuration.
   # N - Number of samples
@@ -287,15 +285,18 @@ GenerateSamples <- function(N = 10^5, params, pop_params, alpha = .05,
   
   # merge maps map_hsts + map_nohttps
   map_merged <- cbind(map_hsts_apprx, map_nohttps_apprx)
-  fit_hsts <- Decode(rappors_hsts, map_merged, params, alpha = alpha,
-                     correction = correction)
+  # todo Dan: what is wrong with this?
+  # ind <- sample(1:length(map_merged), length(map_merged))
+  # map_merged <- map_merged[, ind]
 
-  hsts_fp <-strs_nohttps[na.omit(match(fit_hsts$fit[, 1], strs_nohttps))]
+  fit_hsts <- Decode(rappors_hsts, map_merged, params, threshold)
+
+  hsts_fp <-strs_nohttps[na.omit(match(fit_hsts$found, strs_nohttps))]
 
 
   # Add truth column.
-  fit_hsts$fit$Truth <- table(samp_hsts)[fit_hsts$fit$string]
-  fit_hsts$fit$Truth[is.na(fit_hsts$fit$Truth)] <- 0
+  fit_hsts$Truth <- table(samp_hsts)[colnames(fit_hsts$fit)]
+  fit_hsts$Truth[is.na(fit_hsts$Truth)] <- 0
 
   fit_hsts$map <- map_hsts$map_by_cohort
   fit_hsts$truth <- truth_hsts
@@ -307,11 +308,9 @@ GenerateSamples <- function(N = 10^5, params, pop_params, alpha = .05,
   map_fp_apprx <- as(map_nohttps_apprx[, hsts_fp, drop=FALSE], "sparseMatrix")
   fit_nohttps <- NULL
   if(ncol(map_fp_apprx) != 0) {
-    # todo Dan: I don't think this is quite right, since it detects the FP too frequently?
-    fit_nohttps <- Decode(rappors_nohttps, map_fp_apprx, params, alpha = alpha,
-                  correction = correction)
-    fit_nohttps$fit$Truth <- table(samp_nohttps)[fit_nohttps$fit$string]
-    fit_nohttps$fit$Truth[is.na(fit_nohttps$fit$Truth)] <- 0
+    fit_nohttps <- Decode(rappors_nohttps, map_fp_apprx, params, threshold)
+    fit_nohttps$Truth <- table(samp_nohttps)[colnames(fit_nohttps$fit)]
+    fit_nohttps$Truth[is.na(fit_nohttps$Truth)] <- 0
 
     fit_nohttps$map <- map_nohttps$map_by_cohort
     fit_nohttps$truth <- truth_nohttps
