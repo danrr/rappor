@@ -243,6 +243,7 @@ GenerateSamples <- function(N = 10^5, params, pop_params, threshold = .02, prop_
 
   strs_hsts <- sites[sites$hsts == 1,]$url # Selects sites that have hsts
   strs_nohttps <- sites[sites$https == 0,]$url # Selects sites that are nohttps
+  strs_https <- sites[sites$https == 1 & sites$hsts == 0,]$url # Selects sites that are https but not hsts
 
 
   # hsts
@@ -254,6 +255,9 @@ GenerateSamples <- function(N = 10^5, params, pop_params, threshold = .02, prop_
   map_nohttps <- CreateMap(strs_nohttps, params)
   truth_nohttps <- GetTrueBits(samp_nohttps, map_nohttps$map_by_cohort, params)
   rappors_nohttps <- GetNoisyBits(truth_nohttps, params)
+
+  # nohttps
+  map_https <- CreateMap(strs_https, params)
 
   strs_hsts_apprx <- strs_hsts
   map_hsts_apprx <- map_hsts$all_cohorts_map
@@ -273,26 +277,37 @@ GenerateSamples <- function(N = 10^5, params, pop_params, threshold = .02, prop_
     map_nohttps_apprx <- map_nohttps$all_cohorts_map[, -removed]
     strs_nohttps_apprx <- strs_nohttps[-removed]
   }
-  
+  strs_https_apprx <- strs_https
+  map_https_apprx <- map_https$all_cohorts_map
+  # Remove % of strings to simulate missing variables.
+  if (prop_missing > 0) {
+    ind <- which(probs > 0)
+    removed <- sample(ind, ceiling(prop_missing * length(ind)))
+    map_https_apprx <- map_https$all_cohorts_map[, -removed]
+    strs_https_apprx <- strs_https[-removed]
+  }
 
   # Randomize the columns.
   ind <- sample(1:length(strs_hsts_apprx), length(strs_hsts_apprx))
   map_hsts_apprx <- map_hsts_apprx[, ind]
 
-  # Randomize the columns.
   ind <- sample(1:length(strs_nohttps_apprx), length(strs_nohttps_apprx))
   map_nohttps_apprx <- map_nohttps_apprx[, ind]
+
+  ind <- sample(1:length(strs_https_apprx), length(strs_https_apprx))
+  map_https_apprx <- map_https_apprx[, ind]
   
-  # merge maps map_hsts + map_nohttps
-  map_merged <- cbind(map_hsts_apprx, map_nohttps_apprx)
+  # merge maps map_hsts + map_https_apprx + map_nohttps
+  map_merged <- cbind(map_hsts_apprx, map_https_apprx, map_nohttps_apprx)
   # todo Dan: what is wrong with this?
   # ind <- sample(1:length(map_merged), length(map_merged))
   # map_merged <- map_merged[, ind]
 
   fit_hsts <- Decode(rappors_hsts, map_merged, params, threshold)
 
+  hsts_tp <-strs_hsts[na.omit(match(fit_hsts$found, strs_hsts))]
   hsts_fp <-strs_nohttps[na.omit(match(fit_hsts$found, strs_nohttps))]
-
+  hsts_soft_fp <-strs_https[na.omit(match(fit_hsts$found, strs_https))]
 
   # Add truth column.
   fit_hsts$fit$Truth <- apply(fit_hsts$fit, 1, function(r) {r[1] %in% strs_hsts})
@@ -300,10 +315,12 @@ GenerateSamples <- function(N = 10^5, params, pop_params, threshold = .02, prop_
   fit_hsts$summary <- rbind(
     fit_hsts$summary[1:1,],
     c("HSTS strings", length(strs_hsts_apprx)),
+    c("HTTPS strings", length(strs_https_apprx)),
     c("No HTTPS Strings", length(strs_nohttps_apprx)),
     fit_hsts$summary[2:2,],
-    c("HSTS strings found (True positives)", length(intersect(fit_hsts$found, strs_hsts))),
-    c("No HTTPS strings found (False positives)", length(intersect(fit_hsts$found, strs_nohttps))),
+    c("HSTS strings found (True positives) in B1", length(intersect(fit_hsts$found, strs_hsts))),
+    c("HTTPS strings found (Soft false positives) in B1", length(intersect(fit_hsts$found, strs_https))),
+    c("No HTTPS strings found (Bad false positives) in B1", length(intersect(fit_hsts$found, strs_nohttps))),
     fit_hsts$summary[3:nrow(fit_hsts$summary),]
   )
 
@@ -314,15 +331,27 @@ GenerateSamples <- function(N = 10^5, params, pop_params, threshold = .02, prop_
   fit_hsts$probs <- probs
 
   # Can we identify false positives as part of the rappors_nohttps?
+  map_tp_apprx <- as(map_hsts_apprx[, hsts_tp, drop=FALSE], "sparseMatrix")
+  map_softfp_apprx <- as(map_https_apprx[, hsts_soft_fp, drop=FALSE], "sparseMatrix")
   map_fp_apprx <- as(map_nohttps_apprx[, hsts_fp, drop=FALSE], "sparseMatrix")
+  map_merged_positive <- cbind(map_tp_apprx, map_softfp_apprx, map_fp_apprx)
   fit_nohttps <- NULL
-  if(ncol(map_fp_apprx) != 0) {
-    fit_nohttps <- Decode(rappors_nohttps, map_fp_apprx, params, threshold)
-    fit_nohttps$fit$Truth <- TRUE
+  if(ncol(map_merged_positive) != 0) {
+    fit_nohttps <- Decode(rappors_nohttps, map_merged_positive, params, threshold)
+    fit_nohttps$fit$Truth <- apply(fit_nohttps$fit, 1, function(r) {r[1] %in% strs_nohttps})
 
     fit_nohttps$map <- map_nohttps$map_by_cohort
     fit_nohttps$truth <- truth_nohttps
     fit_nohttps$strs_nohttps <- strs_nohttps
+
+    fit_hsts$summary <- rbind(
+      fit_hsts$summary,
+      c("HSTS strings found in B2 (no benefit)", length(intersect(fit_nohttps$found, strs_hsts))),
+      c("HTTPS strings found in B2", length(intersect(fit_nohttps$found, strs_https))),
+      c("No HTTPS strings not found (disaster) in B2", length(hsts_fp) - length(intersect(fit_nohttps$found, strs_nohttps))),
+      c("No HTTPS strings found (disaster averted) in B2", length(intersect(fit_nohttps$found, strs_nohttps))),
+      c("Final benefit", length(hsts_tp) - length(intersect(fit_nohttps$found, strs_hsts)))
+    )
   }
   fits <- list("hsts" = fit_hsts, "nohttps" = fit_nohttps, "sites" = sites)
   fits
