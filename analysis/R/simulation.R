@@ -295,8 +295,17 @@ GenerateSamples <- function(N = 10^5, params, pop_params, threshold = .02, prop_
 
 
   # Add truth column.
-  fit_hsts$Truth <- table(samp_hsts)[colnames(fit_hsts$fit)]
-  fit_hsts$Truth[is.na(fit_hsts$Truth)] <- 0
+  fit_hsts$fit$Truth <- apply(fit_hsts$fit, 1, function(r) {r[1] %in% strs_hsts})
+
+  fit_hsts$summary <- rbind(
+    fit_hsts$summary[1:1,],
+    c("HSTS strings", length(strs_hsts_apprx)),
+    c("No HTTPS Strings", length(strs_nohttps_apprx)),
+    fit_hsts$summary[2:2,],
+    c("HSTS strings found (True positives)", length(intersect(fit_hsts$found, strs_hsts))),
+    c("No HTTPS strings found (False positives)", length(intersect(fit_hsts$found, strs_nohttps))),
+    fit_hsts$summary[3:nrow(fit_hsts$summary),]
+  )
 
   fit_hsts$map <- map_hsts$map_by_cohort
   fit_hsts$truth <- truth_hsts
@@ -309,8 +318,7 @@ GenerateSamples <- function(N = 10^5, params, pop_params, threshold = .02, prop_
   fit_nohttps <- NULL
   if(ncol(map_fp_apprx) != 0) {
     fit_nohttps <- Decode(rappors_nohttps, map_fp_apprx, params, threshold)
-    fit_nohttps$Truth <- table(samp_nohttps)[colnames(fit_nohttps$fit)]
-    fit_nohttps$Truth[is.na(fit_nohttps$Truth)] <- 0
+    fit_nohttps$fit$Truth <- TRUE
 
     fit_nohttps$map <- map_nohttps$map_by_cohort
     fit_nohttps$truth <- truth_nohttps
