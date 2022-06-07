@@ -3,7 +3,7 @@ source("../../analysis/R/decode.R")
 source("../../analysis/R/simulation.R")
 source("../../analysis/R/encode.R")
 
-Plot <- function(x, color = "grey") {
+Plot <- function(x, threshold=NULL, color = "grey") {
   n <- nrow(x)
   if (n < 16) {
     par(mfrow = c(n, 1), mai = c(0, .5, .5, 0))
@@ -14,6 +14,10 @@ Plot <- function(x, color = "grey") {
   }
   for (i in 1:nrow(x)) {
     barplot(x[i, ], main = paste0("Cohort ", i), col = color, border = color)
+    if (!is.null(threshold)) {
+      abline(h=0)
+      abline(h=threshold, lty="dashed")
+    }
   }
 }
 
@@ -52,22 +56,46 @@ shinyServer(function(input, output) {
     Sample2()$hsts
   })
 
+  Maps <- reactive({
+      input$sample
+      N <- input$N
+      params <- Params()
+      pop_params <- PopParams()
+      prop_missing <- input$missing
+      GenerateMaps(N, params, pop_params, prop_missing = prop_missing)
+  })
+
   Sample2 <- reactive({
-    input$sample
-    N <- input$N
+    maps <- Maps()
     params <- Params()
-    pop_params <- PopParams()
     threshold <- DecodingParams()
-    prop_missing <- input$missing
-    fits <- GenerateSamples(N, params, pop_params,
-      threshold = threshold,
-      prop_missing = prop_missing)
+    fits <- GenerateSamples(
+      params,
+      sites = maps$sites,
+      probs = maps$probs,
+      strs_hsts = maps$strs_hsts,
+      strs_nohttps = maps$strs_nohttps,
+      strs_https = maps$strs_https,
+      strs_hsts_apprx = maps$strs_hsts_apprx,
+      strs_https_apprx = maps$strs_https_apprx,
+      strs_nohttps_apprx = maps$strs_nohttps_apprx,
+      truth_hsts = maps$truth_hsts,
+      truth_nohttps = maps$truth_nohttps,
+      map_hsts = maps$map_hsts,
+      map_nohttps = maps$map_nohttps,
+      map_https = maps$map_https,
+      map_hsts_apprx = maps$map_hsts_apprx,
+      map_nohttps_apprx = maps$map_nohttps_apprx,
+      map_https_apprx = maps$map_https_apprx,
+      rappors_hsts = maps$rappors_hsts,
+      rappors_nohttps = maps$rappors_nohttps,
+      threshold = threshold)
     fits
   })
 
   # Results summary.
   output$pr <- renderTable({
-    Sample()$summary
+    Sample2()$hsts$summary
   },
   include.rownames = FALSE,
   include.colnames = FALSE)
@@ -114,7 +142,7 @@ shinyServer(function(input, output) {
   # True bits patterns.
   output$truth <- renderPlot({
     truth <- Sample()$truth
-    Plot(truth[, -1, drop = FALSE], color = "darkblue")
+    Plot(truth[, -1, drop = FALSE], threshold = NULL, color = "darkblue")
   })
 
   # Lasso plot.
@@ -140,7 +168,8 @@ shinyServer(function(input, output) {
   # Estimated bits patterns.
   output$ests <- renderPlot({
     ests <- Sample()$ests
-    Plot(ests, color = "darkred")
+    threshold <- DecodingParams()
+    Plot(ests, threshold=threshold, color = "darkred")
   })
 
   # Estimated vs truth.

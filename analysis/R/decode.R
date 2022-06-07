@@ -157,7 +157,7 @@ CheckDecodeInputs <- function(counts, map, params) {
   return(NULL)  # no error
 }
 
-Decode <- function(counts, map, params, threshold, quiet = FALSE, ...) {
+Decode <- function(counts, map, params, threshold, ...) {
 
   error_msg <- CheckDecodeInputs(counts, map, params)
   if (!is.null(error_msg)) {
@@ -191,8 +191,6 @@ Decode <- function(counts, map, params, threshold, quiet = FALSE, ...) {
   answers <- t(apply(map_filtered, 2, function(all_cohorts) {
     split_cohorts <- split(all_cohorts, ceiling(seq_along(all_cohorts)/k))
     answer <- rep(FALSE, length(split_cohorts))
-    estimates_stds_filtered$estimates
-    
     for (i in 1:length(split_cohorts)) {
       estimate_counts <- estimates_stds_filtered$estimates[i,]
       estimate_std <- estimates_stds_filtered$std[i,]

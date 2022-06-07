@@ -225,7 +225,7 @@ GetNoisyBits <- function(truth, params) {
   cbind(truth[, 1], t(rappors))
 }
 
-GenerateSamples <- function(N = 10^5, params, pop_params, threshold = .02, prop_missing = 0) {
+GenerateMaps <- function(N = 10^5, params, pop_params, prop_missing = 0) {
   # Simulate N reports with pop_params describing the population and
   # params describing the RAPPOR configuration.
   # N - Number of samples
@@ -296,7 +296,38 @@ GenerateSamples <- function(N = 10^5, params, pop_params, threshold = .02, prop_
 
   ind <- sample(1:length(strs_https_apprx), length(strs_https_apprx))
   map_https_apprx <- map_https_apprx[, ind]
-  
+
+  list(sites = sites,
+       probs = probs,
+       strs_hsts=strs_hsts,
+       strs_nohttps=strs_nohttps,
+       strs_https=strs_https,
+       strs_hsts_apprx = strs_hsts_apprx,
+       strs_https_apprx = strs_https_apprx,
+       strs_nohttps_apprx = strs_nohttps_apprx,
+       truth_hsts=truth_hsts,
+       truth_nohttps=truth_nohttps,
+       map_hsts = map_hsts,
+       map_nohttps = map_nohttps,
+       map_https = map_https,
+       map_hsts_apprx=map_hsts_apprx,
+       map_nohttps_apprx=map_nohttps_apprx,
+       map_https_apprx=map_https_apprx,
+       rappors_hsts=rappors_hsts,
+       rappors_nohttps=rappors_nohttps
+  )
+}
+
+GenerateSamples <- function(params,
+                            sites,
+                            probs,
+                            strs_hsts, strs_nohttps, strs_https,
+                            strs_hsts_apprx, strs_https_apprx, strs_nohttps_apprx,
+                            truth_hsts, truth_nohttps,
+                            map_hsts, map_nohttps, map_https,
+                            map_hsts_apprx, map_nohttps_apprx, map_https_apprx,
+                            rappors_hsts, rappors_nohttps,
+                            threshold = .02) {
   # merge maps map_hsts + map_https_apprx + map_nohttps
   map_merged <- cbind(map_hsts_apprx, map_https_apprx, map_nohttps_apprx)
   # todo Dan: what is wrong with this?
