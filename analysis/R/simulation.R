@@ -28,17 +28,17 @@ SetOfSites <- function(num_sites = 100, proportion_https = 0.7, proportion_hsts_
   sites
 }
 
-GetSampleProbs <- function(params) {
+GetSampleProbs <- function(pop_params) {
   # Generate different underlying distributions for simulations purposes.
   # Args:
-  #    - params: a list describing the shape of the true distribution:
+  #    - pop_params: a list describing the shape of the true distribution:
   #              c(num_strings, prop_nonzero_strings, decay_type,
-  #                rate_exponetial).
-  nsites <- params[[1]]
-  nonzero <- params[[4]]
-  decay <- params[[5]]
-  expo <- params[[6]]
-  background <- params[[7]]
+  #                rate_exponential).
+  nsites <- pop_params[[1]]
+  nonzero <- pop_params[[4]]
+  decay <- pop_params[[5]]
+  expo <- pop_params[[6]]
+  background <- pop_params[[7]]
 
   probs <- rep(0, nsites)
   ind <- floor(nsites * nonzero)
@@ -53,7 +53,7 @@ GetSampleProbs <- function(params) {
     temp <- temp / sum(temp)
     probs[1:ind] <- temp
   } else {
-    stop('params[[4]] must be in c("Linear", "Exponenential", "Constant")')
+    stop('pop_params[[5]] must be in c("Linear", "Exponenential", "Constant")')
   }
   probs
 }

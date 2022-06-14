@@ -334,9 +334,9 @@ _run-tests() {
   local instances=${5:-1}
 
   local regtest_dir=$REGTEST_BASE_DIR/$impl
-  rm -r -f --verbose $regtest_dir
+  rm -rf $regtest_dir
   
-  mkdir --verbose -p $regtest_dir
+  mkdir -p $regtest_dir
 
   local func
   local processors

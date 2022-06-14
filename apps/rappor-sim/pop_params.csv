@@ -1,0 +1,2 @@
+num_sites, nhttps, nhsts, nonzero, decay, expo, background, N, prop_missing
+1000, 0.7, 0.3, 0.5,"Exponential", 10, 0.05, 10000000, 0

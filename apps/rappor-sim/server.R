@@ -127,16 +127,7 @@ shinyServer(function(input, output) {
   # True distribution.
   output$probs <- renderPlot({
     samp <- Sample2()
-    probs <- samp$hsts$probs
-    of_interest <- match(samp$hsts$strs, samp$hsts$strs_full)
-    detected <- match(intersect(samp$hsts$found, samp$hsts$strs), samp$hsts$strs_full)
-    detected_fp <- match(intersect(samp$hsts$found, samp$nohttps$strs_nohttps), samp$hsts$strs_full)
-    detected_nohttps <- NULL
-    if (!is.null(samp$nohttps)) {
-      detected_nohttps <- match(samp$nohttps$found, samp$hsts$strs_full)
-    }
-    detection_frequency <- samp$hsts$privacy[7, 2]
-    PlotPopulation(probs, of_interest, detected, detected_fp, detected_nohttps, detection_frequency)
+    PlotPopulation(samp)
   })
 
   # True bits patterns.
