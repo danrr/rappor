@@ -2,18 +2,6 @@ source("../../analysis/R/decode.R")
 source("../../analysis/R/simulation.R")
 source("../../analysis/R/encode.R")
 
-library("RJSONIO")
-
-genMaps <- function(params_file = "./params.csv", pop_params_file = "./pop_params.csv") {
-
-
-
-}
-
-# arguments: params.csv, pop_params.csv, decode.csv, maps json file;
-# if not passed in an existing json file, call genMaps, which outputs the maps, then moves onto do other stuff
-
-
 main <- function(argv) {
   maps_file <- argv[[1]]
   params_file <- argv[[2]]
