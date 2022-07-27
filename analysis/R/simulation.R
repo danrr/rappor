@@ -351,8 +351,6 @@ GenerateSamples <- function(params,
   threshold <- decoding_params[[1]]
   primary_decision <- DecisionFunctions(params, decoding_params[[2]])
   secondary_decision <- DecisionFunctions(params, decoding_params[[3]])
-  print(primary_decision)
-  print(secondary_decision)
 
   # merge maps map_hsts + map_https_apprx + map_nohttps
   map_merged <- cbind(map_hsts_apprx, map_https_apprx, map_nohttps_apprx)
