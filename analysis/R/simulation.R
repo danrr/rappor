@@ -36,13 +36,12 @@ GetSampleProbs <- function(pop_params) {
   #              c(num_strings, prop_nonzero_strings, decay_type,
   #                rate_exponential).
   nsites <- pop_params[[1]]
-  nonzero <- pop_params[[4]]
   decay <- pop_params[[5]]
   expo <- pop_params[[6]]
   background <- pop_params[[7]]
 
   probs <- rep(0, nsites)
-  ind <- floor(nsites * nonzero)
+  ind <- floor(nsites)
   if (decay == "Measured") {
     temp <- read.csv('./majestic_million.csv',nrows=ind)$RefSubNets
     probs[1:ind] <- temp/sum(temp)
@@ -56,7 +55,7 @@ GetSampleProbs <- function(pop_params) {
   } else if (decay == "Constant") {
     probs[1:ind] <- 1 / ind
   } else if (decay == "Exponential") {
-    temp <- seq(0, nonzero, length.out = ind)
+    temp <- seq(0, 1, length.out = ind)
     temp <- exp(-temp * expo)
     temp <- temp + background
     temp <- temp / sum(temp)

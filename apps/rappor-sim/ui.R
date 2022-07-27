@@ -51,7 +51,7 @@ shinyUI(pageWithSidebar(
                                                                       min = .1, max = 0.99, value = 0.3, step = .1),
                                                           br(),
                                                           sliderInput("nonzero", "Proportion of non-zero strings:",
-                                                                      min = .1, max = 1, value = 0.5, step = .1),
+                                                                      min = 0, max = 0, value = 0, step = .1),
                                                           br(),
                                                           selectInput("decay", "Decay of non-zero strings",
                                                                       c("Linear", "Exponential", "Constant", "Zipf", "Measured"),
