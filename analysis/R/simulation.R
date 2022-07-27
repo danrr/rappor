@@ -21,7 +21,8 @@ library(parallel)  # mclapply
 
 SetOfSites <- function(num_sites = 100, proportion_https = 0.7, proportion_hsts_of_https = 0.3) {
   # Generates a set of strings for simulation purposes.
-  urls <- paste0("V_", as.character(1:num_sites), sample(c(".com", ".co.uk", ".fr"), num_sites, replace=TRUE))
+  # urls <- paste0("V_", as.character(1:num_sites), sample(c(".com", ".co.uk", ".fr"), num_sites, replace=TRUE))
+  urls <- read.csv('./majestic_million.csv',nrows=num_sites)$Domain
   https <- as.logical(rbinom(n=num_sites, size=1, prob=proportion_https))
   sites <- data.frame(url=urls, https=https)
   sites$hsts <- sites$https & as.logical(rbinom(n=num_sites, size=1, prob=proportion_hsts_of_https))
@@ -42,7 +43,15 @@ GetSampleProbs <- function(pop_params) {
 
   probs <- rep(0, nsites)
   ind <- floor(nsites * nonzero)
-  if (decay == "Linear") {
+  if (decay == "Measured") {
+    temp <- read.csv('./majestic_million.csv',nrows=ind)$RefSubNets
+    probs[1:ind] <- temp/sum(temp)
+  }
+  else if (decay == "Zipf") {
+    temp <- 1.13/(1:ind) # todo Dan: maybe have a parameter, but 1 for now
+    probs[1:ind] <- temp/sum(temp)
+  }
+  else if (decay == "Linear") {
     probs[1:ind] <- (ind:1) / sum(1:ind)
   } else if (decay == "Constant") {
     probs[1:ind] <- 1 / ind
@@ -53,7 +62,7 @@ GetSampleProbs <- function(pop_params) {
     temp <- temp / sum(temp)
     probs[1:ind] <- temp
   } else {
-    stop('pop_params[[5]] must be in c("Linear", "Exponenential", "Constant")')
+    stop('pop_params[[5]] must be in c("Linear", "Exponenential", "Constant", "Measured", "Zipf")')
   }
   probs
 }
