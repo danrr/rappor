@@ -197,7 +197,7 @@ Decode <- function(counts, map, params, threshold, decision_func) {
       cohort <- split_cohorts[i]
       answer[i] <- all(estimate_counts[unlist(cohort)] > threshold) # Todo Dan: show confidence using estimate_std
     }
-    answer <- append(answer, decision_func(answer))  # TODO Dan: make the decision function configurable per bloom filter
+    answer <- append(answer, decision_func(answer))
     answer
   }))
   answers <- cbind(colnames(map), data.frame(answers))
