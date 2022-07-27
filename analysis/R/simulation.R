@@ -326,7 +326,20 @@ GenerateMaps <- function(N = 10^5, params, pop_params, prop_missing = 0) {
   )
 }
 
+DecisionFunctions <- function(params, func) {
+  decision_func <- function(answer) {TRUE}
+  if (func == "any") {
+    decision_func <- function(answer) any(answer)
+  } else if (func == "all") {
+    decision_func <- function(answer) all(answer)
+  } else if (func == "all") {
+    decision_func <- function(answer) {sum(answer) >  params$m / 2}
+  }
+  decision_func
+}
+
 GenerateSamples <- function(params,
+                            decoding_params,
                             sites,
                             probs,
                             strs_hsts, strs_nohttps, strs_https,
@@ -334,15 +347,20 @@ GenerateSamples <- function(params,
                             truth_hsts, truth_nohttps,
                             map_hsts, map_nohttps, map_https,
                             map_hsts_apprx, map_nohttps_apprx, map_https_apprx,
-                            rappors_hsts, rappors_nohttps,
-                            threshold = .02) {
+                            rappors_hsts, rappors_nohttps) {
+  threshold <- decoding_params[[1]]
+  primary_decision <- DecisionFunctions(params, decoding_params[[2]])
+  secondary_decision <- DecisionFunctions(params, decoding_params[[3]])
+  print(primary_decision)
+  print(secondary_decision)
+
   # merge maps map_hsts + map_https_apprx + map_nohttps
   map_merged <- cbind(map_hsts_apprx, map_https_apprx, map_nohttps_apprx)
   # todo Dan: what is wrong with this?
   # ind <- sample(1:length(map_merged), length(map_merged))
   # map_merged <- map_merged[, ind]
 
-  fit_hsts <- Decode(rappors_hsts, map_merged, params, threshold)
+  fit_hsts <- Decode(rappors_hsts, map_merged, params, threshold, decision_func = primary_decision)
 
   hsts_tp <-strs_hsts[na.omit(match(fit_hsts$found, strs_hsts))]
   hsts_fp <-strs_nohttps[na.omit(match(fit_hsts$found, strs_nohttps))]
@@ -376,7 +394,7 @@ GenerateSamples <- function(params,
   map_merged_positive <- cbind(map_tp_apprx, map_softfp_apprx, map_fp_apprx)
   fit_nohttps <- NULL
   if(ncol(map_merged_positive) != 0) {
-    fit_nohttps <- Decode(rappors_nohttps, map_merged_positive, params, threshold)
+    fit_nohttps <- Decode(rappors_nohttps, map_merged_positive, params, threshold, decision_func = secondary_decision)
     fit_nohttps$fit$Truth <- apply(fit_nohttps$fit, 1, function(r) {r[1] %in% strs_nohttps})
 
     fit_nohttps$map <- map_nohttps$map_by_cohort

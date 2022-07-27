@@ -73,7 +73,15 @@ shinyUI(pageWithSidebar(
                                                           br(),
                                                           sliderInput("missing", "Proportion of non-zero strings missing from decoding:",
                                                                       min = 0, max = 1, value = 0, step = .1),
-                                                          br()
+                                                          br(),
+                                                          selectInput("primary_decision", "Primary filter decision function",
+                                                                      c("all", "any", "majority"),
+                                                                      selected = "majority"),
+                                                          br(),
+                                                          selectInput("secondary_decision", "Secondary filter decision function",
+                                                                      c("all", "any", "majority"),
+                                                                      selected = "any"),
+                                                          br(),
                                                           )
                                      )),
                         mainPanel(

@@ -157,7 +157,7 @@ CheckDecodeInputs <- function(counts, map, params) {
   return(NULL)  # no error
 }
 
-Decode <- function(counts, map, params, threshold, ...) {
+Decode <- function(counts, map, params, threshold, decision_func) {
 
   error_msg <- CheckDecodeInputs(counts, map, params)
   if (!is.null(error_msg)) {
@@ -197,7 +197,7 @@ Decode <- function(counts, map, params, threshold, ...) {
       cohort <- split_cohorts[i]
       answer[i] <- all(estimate_counts[unlist(cohort)] > threshold) # Todo Dan: show confidence using estimate_std
     }
-    answer <- append(answer, sum(answer) > m / 2)
+    answer <- append(answer, decision_func(answer))  # TODO Dan: make the decision function configurable per bloom filter
     answer
   }))
   answers <- cbind(colnames(map), data.frame(answers))
