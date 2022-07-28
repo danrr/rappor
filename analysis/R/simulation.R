@@ -20,7 +20,8 @@ library(parallel)  # mclapply
 
 SetOfSites <- function(num_sites = 100, proportion_https = 0.7, proportion_hsts_of_https = 0.3) {
   # Generates a set of strings for simulation purposes.
-  urls <- paste0("V_", as.character(1:num_sites), sample(c(".com", ".co.uk", ".fr"), num_sites, replace=TRUE))
+  # urls <- paste0("V_", as.character(1:num_sites), sample(c(".com", ".co.uk", ".fr"), num_sites, replace=TRUE))
+  urls <- read.csv('./majestic_million.csv',nrows=num_sites)$Domain
   https <- as.logical(rbinom(n=num_sites, size=1, prob=proportion_https))
   sites <- data.frame(url=urls, https=https)
   sites$hsts <- sites$https & as.logical(rbinom(n=num_sites, size=1, prob=proportion_hsts_of_https))
@@ -34,25 +35,32 @@ GetSampleProbs <- function(pop_params) {
   #              c(num_strings, prop_nonzero_strings, decay_type,
   #                rate_exponential).
   nsites <- pop_params[[1]]
-  nonzero <- pop_params[[4]]
   decay <- pop_params[[5]]
   expo <- pop_params[[6]]
   background <- pop_params[[7]]
 
   probs <- rep(0, nsites)
-  ind <- floor(nsites * nonzero)
-  if (decay == "Linear") {
+  ind <- floor(nsites)
+  if (decay == "Measured") {
+    temp <- read.csv('./majestic_million.csv',nrows=ind)$RefSubNets
+    probs[1:ind] <- temp/sum(temp)
+  }
+  else if (decay == "Zipf") {
+    temp <- 1.13/(1:ind) # todo Dan: maybe have a parameter, but 1 for now
+    probs[1:ind] <- temp/sum(temp)
+  }
+  else if (decay == "Linear") {
     probs[1:ind] <- (ind:1) / sum(1:ind)
   } else if (decay == "Constant") {
     probs[1:ind] <- 1 / ind
   } else if (decay == "Exponential") {
-    temp <- seq(0, nonzero, length.out = ind)
+    temp <- seq(0, 1, length.out = ind)
     temp <- exp(-temp * expo)
     temp <- temp + background
     temp <- temp / sum(temp)
     probs[1:ind] <- temp
   } else {
-    stop('pop_params[[5]] must be in c("Linear", "Exponenential", "Constant")')
+    stop('pop_params[[5]] must be in c("Linear", "Exponenential", "Constant", "Measured", "Zipf")')
   }
   probs
 }
@@ -317,7 +325,20 @@ GenerateMaps <- function(N = 10^5, params, pop_params, prop_missing = 0) {
   )
 }
 
+DecisionFunctions <- function(params, func) {
+  decision_func <- function(answer) {TRUE}
+  if (func == "any") {
+    decision_func <- function(answer) any(answer)
+  } else if (func == "all") {
+    decision_func <- function(answer) all(answer)
+  } else if (func == "all") {
+    decision_func <- function(answer) {sum(answer) >  params$m / 2}
+  }
+  decision_func
+}
+
 GenerateSamples <- function(params,
+                            decoding_params,
                             sites,
                             probs,
                             strs_hsts, strs_nohttps, strs_https,
@@ -325,15 +346,18 @@ GenerateSamples <- function(params,
                             truth_hsts, truth_nohttps,
                             map_hsts, map_nohttps, map_https,
                             map_hsts_apprx, map_nohttps_apprx, map_https_apprx,
-                            rappors_hsts, rappors_nohttps,
-                            threshold = .02) {
+                            rappors_hsts, rappors_nohttps) {
+  threshold <- decoding_params[[1]]
+  primary_decision <- DecisionFunctions(params, decoding_params[[2]])
+  secondary_decision <- DecisionFunctions(params, decoding_params[[3]])
+
   # merge maps map_hsts + map_https_apprx + map_nohttps
   map_merged <- cbind(map_hsts_apprx, map_https_apprx, map_nohttps_apprx)
   # todo Dan: what is wrong with this?
   # ind <- sample(1:length(map_merged), length(map_merged))
   # map_merged <- map_merged[, ind]
 
-  fit_hsts <- Decode(rappors_hsts, map_merged, params, threshold)
+  fit_hsts <- Decode(rappors_hsts, map_merged, params, threshold, decision_func = primary_decision)
 
   hsts_tp <-strs_hsts[na.omit(match(fit_hsts$found, strs_hsts))]
   hsts_fp <-strs_nohttps[na.omit(match(fit_hsts$found, strs_nohttps))]
@@ -367,7 +391,7 @@ GenerateSamples <- function(params,
   map_merged_positive <- cbind(map_tp_apprx, map_softfp_apprx, map_fp_apprx)
   fit_nohttps <- NULL
   if(ncol(map_merged_positive) != 0) {
-    fit_nohttps <- Decode(rappors_nohttps, map_merged_positive, params, threshold)
+    fit_nohttps <- Decode(rappors_nohttps, map_merged_positive, params, threshold, decision_func = secondary_decision)
     fit_nohttps$fit$Truth <- apply(fit_nohttps$fit, 1, function(r) {r[1] %in% strs_nohttps})
 
     fit_nohttps$map <- map_nohttps$map_by_cohort

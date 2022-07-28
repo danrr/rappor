@@ -49,7 +49,10 @@ shinyServer(function(input, output) {
   })
 
   DecodingParams <- reactive({
-    as.numeric(input$threshold)
+    list(as.numeric(input$threshold),
+      input$primary_decision,
+      input$secondary_decision
+    )
   })
 
   Sample <- reactive({
@@ -68,9 +71,10 @@ shinyServer(function(input, output) {
   Sample2 <- reactive({
     maps <- Maps()
     params <- Params()
-    threshold <- DecodingParams()
+    decoding_params <- DecodingParams()
     fits <- GenerateSamples(
       params,
+      decoding_params,
       sites = maps$sites,
       probs = maps$probs,
       strs_hsts = maps$strs_hsts,
@@ -88,8 +92,7 @@ shinyServer(function(input, output) {
       map_nohttps_apprx = maps$map_nohttps_apprx,
       map_https_apprx = maps$map_https_apprx,
       rappors_hsts = maps$rappors_hsts,
-      rappors_nohttps = maps$rappors_nohttps,
-      threshold = threshold)
+      rappors_nohttps = maps$rappors_nohttps)
     fits
   })
 
@@ -159,7 +162,7 @@ shinyServer(function(input, output) {
   # Estimated bits patterns.
   output$ests <- renderPlot({
     ests <- Sample()$ests
-    threshold <- DecodingParams()
+    threshold <- DecodingParams()[[1]]
     Plot(ests, threshold=threshold, color = "darkred")
   })
 

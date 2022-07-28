@@ -117,12 +117,14 @@ ExamplePlot <- function(res, k, ebs = 1, title = "", title_cex = 4,
 
 PlotPopulation <- function(samp) {
     probs <- samp$hsts$probs
-    of_interest <- match(samp$hsts$strs, samp$hsts$strs_full)
-    detected <- match(intersect(samp$hsts$found, samp$hsts$strs), samp$hsts$strs_full)
-    detected_fp <- match(intersect(samp$hsts$found, samp$nohttps$strs_nohttps), samp$hsts$strs_full)
+    strs_full <- samp$hsts$strs_full
+    of_interest <- match(samp$hsts$strs, strs_full)
+    detected <- match(intersect(samp$hsts$found, samp$hsts$strs), strs_full)
+    false_pos_strs <- intersect(samp$hsts$found, samp$nohttps$strs_nohttps)
+    detected_fp <- match(false_pos_strs, strs_full)
     detected_nohttps <- NULL
     if (!is.null(samp$nohttps)) {
-      detected_nohttps <- match(samp$nohttps$found, samp$hsts$strs_full)
+      detected_nohttps <- match(intersect(samp$nohttps$found, false_pos_strs), strs_full)
     }
     detection_frequency <- samp$hsts$privacy[7, 2]
     cc <- c("gray80", "gray50", "blue", "darkred", "green")
