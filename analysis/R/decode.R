@@ -191,18 +191,20 @@ Decode <- function(counts, map, params, threshold, decision_func) {
   answers <- t(apply(map_filtered, 2, function(all_cohorts) {
     split_cohorts <- split(all_cohorts, ceiling(seq_along(all_cohorts)/k))
     answer <- rep(FALSE, length(split_cohorts))
+    temp <- rep(FALSE, length(split_cohorts))
     for (i in 1:length(split_cohorts)) {
       estimate_counts <- estimates_stds_filtered$estimates[i,]
       estimate_std <- estimates_stds_filtered$std[i,]
       cohort <- split_cohorts[i]
       answer[i] <- all(estimate_counts[unlist(cohort)] > threshold) # Todo Dan: show confidence using estimate_std
+      temp[i] <- paste(floor((1 - pnorm(threshold, estimate_counts[unlist(cohort)], estimate_std[unlist(cohort)]))*100), collapse = " ")
     }
-    answer <- append(answer, decision_func(answer))
+    answer <- append(paste(answer, temp, sep="\n"), decision_func(answer))
     answer
   }))
   answers <- cbind(colnames(map), data.frame(answers))
   colnames(answers) <- c("Site", paste("Cohort ", filter_cohorts), "Decision")
-
+  answers$Decision <- answers$Decision == "TRUE"
   num_detected <- sum(answers$Decision)
 
   # Compute summary of the fit.

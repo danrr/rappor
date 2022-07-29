@@ -19,9 +19,10 @@ main <- function(argv) {
     save(maps, file=maps_file)
   }
 
-  threshold <- read.csv(decode_file)$threshold
+  decoding_params <- read.csv(decode_file)
   fits <- GenerateSamples(
       params,
+      decoding_params,
       sites = maps$sites,
       probs = maps$probs,
       strs_hsts = maps$strs_hsts,
@@ -39,8 +40,7 @@ main <- function(argv) {
       map_nohttps_apprx = maps$map_nohttps_apprx,
       map_https_apprx = maps$map_https_apprx,
       rappors_hsts = maps$rappors_hsts,
-      rappors_nohttps = maps$rappors_nohttps,
-      threshold = threshold)
+      rappors_nohttps = maps$rappors_nohttps)
 
     print(fits$hsts$summary)
 }

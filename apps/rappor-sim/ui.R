@@ -31,7 +31,7 @@ shinyUI(pageWithSidebar(
                                                           sliderInput("q", "Probability of reporting signal (q):",
                                                                       min = .01, max = .99, value = .75, step = .01),
                                                           sliderInput("f", "Probability of lies (f):",
-                                                                      min = 0, max = .99, value = .5, step = .01),
+                                                                      min = 0, max = .99, value = 0, step = .01),
                                                           br(),
                                                           htmlOutput("epsilon"),
                                                           br(),

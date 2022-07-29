@@ -264,7 +264,7 @@ GenerateMaps <- function(N = 10^5, params, pop_params, prop_missing = 0) {
   truth_nohttps <- GetTrueBits(samp_nohttps, map_nohttps$map_by_cohort, params)
   rappors_nohttps <- GetNoisyBits(truth_nohttps, params)
 
-  # nohttps
+  # nohsts
   map_https <- CreateMap(strs_https, params)
 
   strs_hsts_apprx <- strs_hsts
