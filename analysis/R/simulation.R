@@ -15,8 +15,7 @@
 #
 # RAPPOR simulation library. Contains code for encoding simulated data and
 #     creating the map used to encode and decode reports.
-
-library(glmnet)
+suppressPackageStartupMessages(library(glmnet))
 library(parallel)  # mclapply
 
 SetOfSites <- function(num_sites = 100, proportion_https = 0.7, proportion_hsts_of_https = 0.3) {
@@ -367,17 +366,17 @@ GenerateSamples <- function(params,
   # Add truth column.
   fit_hsts$fit$Truth <- apply(fit_hsts$fit, 1, function(r) {r[1] %in% strs_hsts})
 
-  fit_hsts$summary <- rbind(
-    fit_hsts$summary[1:1,],
-    c("HSTS strings", length(strs_hsts_apprx)),
-    c("HTTPS strings", length(strs_https_apprx)),
-    c("No HTTPS Strings", length(strs_nohttps_apprx)),
-    fit_hsts$summary[2:2,],
-    c("HSTS strings found (True positives) in B1", length(intersect(fit_hsts$found, strs_hsts))),
-    c("HTTPS strings found (Soft false positives) in B1", length(intersect(fit_hsts$found, strs_https))),
-    c("No HTTPS strings found (Bad false positives) in B1", length(intersect(fit_hsts$found, strs_nohttps))),
-    fit_hsts$summary[3:nrow(fit_hsts$summary),]
-  )
+ fit_hsts$summary <- rbind(
+			       fit_hsts$summary[1:1,],
+			           c(",HSTS strings", length(strs_hsts_apprx)),
+			           c(",HTTPS strings,", length(strs_https_apprx)),
+				       c(",No HTTPS Strings,", length(strs_nohttps_apprx)),
+				       fit_hsts$summary[2:2,],
+				           c(",HSTS strings found (True positives) in B1,", length(intersect(fit_hsts$found, strs_hsts))),
+				           c(",HTTPS strings found (Soft false positives) in B1,", length(intersect(fit_hsts$found, strs_https))),
+					       c(",No HTTPS strings found (Bad false positives) in B1,", length(intersect(fit_hsts$found, strs_nohttps))),
+					       fit_hsts$summary[3:nrow(fit_hsts$summary),]
+					         )
 
   fit_hsts$map <- map_hsts$map_by_cohort
   fit_hsts$truth <- truth_hsts
@@ -398,16 +397,15 @@ GenerateSamples <- function(params,
     fit_nohttps$map <- map_nohttps$map_by_cohort
     fit_nohttps$truth <- truth_nohttps
     fit_nohttps$strs_nohttps <- strs_nohttps
-
-    fit_hsts$summary <- rbind(
-      fit_hsts$summary,
-      c("HSTS strings found in B2 (no benefit)", length(intersect(fit_nohttps$found, strs_hsts))),
-      c("HTTPS strings found in B2", length(intersect(fit_nohttps$found, strs_https))),
-      c("No HTTPS strings not found (disaster) in B2", length(hsts_fp) - length(intersect(fit_nohttps$found, strs_nohttps))),
-      c("No HTTPS strings found (disaster averted) in B2", length(intersect(fit_nohttps$found, strs_nohttps))),
-      c("Final benefit", length(hsts_tp) - length(intersect(fit_nohttps$found, strs_hsts)))
-    )
-  }
+fit_hsts$summary <- rbind(
+			        fit_hsts$summary,
+				      c(",HSTS strings found in B2 (no benefit),", length(intersect(fit_nohttps$found, strs_hsts))),
+				      c(",HTTPS strings found in B2,", length(intersect(fit_nohttps$found, strs_https))),
+				            c(", disaster,", length(hsts_fp) - length(intersect(fit_nohttps$found, strs_nohttps))),
+				            c(",No HTTPS strings found (disaster averted) in B2,", length(intersect(fit_nohttps$found, strs_nohttps))),
+					          c(", benefit,", length(hsts_tp) - length(intersect(fit_nohttps$found, strs_hsts)))
+					        )
+     }
   fits <- list("hsts" = fit_hsts, "nohttps" = fit_nohttps, "sites" = sites)
   fits
 }
