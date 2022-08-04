@@ -29,7 +29,6 @@ def write_decode_params(decode):
 
 def run_sim(params, threshold):
 
-    write_params(params)
     write_decode_params(threshold) 
     new_env = os.environ.copy()
     new_env["RAPPOR_REPO"] = "../../"
@@ -51,16 +50,17 @@ def run_sim(params, threshold):
 sim_results = []
 
 params = [2048,2,8,0.5,0.75,0]
-thresholds = [0.002, 0.005, 0.001]
-filter_sizes = range(0,2)
+thresholds = [0.002, 0.005, 0.001, 0.02, 0.0001, 0.004, 0.006,0.005,0.05,0.001,0.003,0.004,0.004]
+filter_sizes = range(0,4)
 filter_sizes = [2**x for x in filter_sizes]
 cohort_sizes = [256]#,64,128,256,512,1024,2048,4096]
 
 
-for filter_size in filter_sizes:
+for filter_size in filter_sizes[3:]:
     params[0]=filter_size
     for size in cohort_sizes:
         delete_map()
+        write_params(params)
         for t in thresholds:
             params[2] = size
             sim_results.append((run_sim(params, t), params.copy()))
