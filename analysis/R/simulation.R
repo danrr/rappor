@@ -16,7 +16,7 @@
 # RAPPOR simulation library. Contains code for encoding simulated data and
 #     creating the map used to encode and decode reports.
 suppressPackageStartupMessages(library(glmnet))
-library(parallel)  # mclapply
+suppressPackageStartupMessages(library(parallel))  # mclapply
 
 SetOfSites <- function(num_sites = 100, proportion_https = 0.7, proportion_hsts_of_https = 0.3) {
   # Generates a set of strings for simulation purposes.
