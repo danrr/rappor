@@ -1,5 +1,6 @@
 import subprocess
 import os
+from simulation_params import numbers_of_cohorts, filter_sizes, primary_decisions, secondary_decisions, threshold_values
 
 def delete_map():
     try:
@@ -18,18 +19,19 @@ def write_params(params):
         file.writelines(data)
         file.write('\n')
 
-def write_decode_params(decode):
+def write_decode_params(decode_params):
     with open('decode.csv', 'r') as file:
         data = file.readlines()
 
-    data[1] = str(decode) + ",majority, majority"
+    decode_params = [str(x) for x in decode_params]
+    data[1] = ','.join(decode_params)
     with open('decode.csv', 'w') as file:
         file.writelines(data)
         file.write('\n')
 
-def run_sim(params, threshold):
+def run_sim(params, decode_params):
 
-    write_decode_params(threshold) 
+    write_decode_params(decode_params) 
     new_env = os.environ.copy()
     new_env["RAPPOR_REPO"] = "../../"
     bashCommand = "Rscript cli.R map.Rdata params.csv pop_params.csv decode.csv"
@@ -50,20 +52,21 @@ def run_sim(params, threshold):
 sim_results = []
 
 params = [2048,2,8,0.5,0.75,0]
-thresholds = [0.002, 0.005, 0.001, 0.02, 0.0001, 0.004, 0.006,0.005,0.05,0.001,0.003,0.004,0.004]
-filter_sizes = range(0,4)
-filter_sizes = [2**x for x in filter_sizes]
-cohort_sizes = [256]#,64,128,256,512,1024,2048,4096]
+decode_params = [0.001, "majority", "majority"]
 
-
-for filter_size in filter_sizes[3:]:
+# Obviously this next bit is completely horrific but it was quick to do
+for filter_size in filter_sizes:
     params[0]=filter_size
-    for size in cohort_sizes:
+    for size in numbers_of_cohorts:
+        params[2] = size
+        # Deletion of the map: things that change the map go above this line
         delete_map()
         write_params(params)
-        for t in thresholds:
-            params[2] = size
-            sim_results.append((run_sim(params, t), params.copy()))
+        for t in threshold_values:
+            decode_params[0] = t
+            for decision in primary_decisions:
+                decode_params[1] = decision
+                sim_results.append((run_sim(params, decode_params), params.copy()))
 
 print("disasters, success, filter_size, cohort_size")
 for x in sim_results:

@@ -1,0 +1,5 @@
+filter_sizes = [256,1024,4096]
+numbers_of_cohorts = [2]
+threshold_values = [0.001, 0.002, 0.003]
+primary_decisions = ['majority', 'any', 'all']
+secondary_decisions = ['majority','any','all']
