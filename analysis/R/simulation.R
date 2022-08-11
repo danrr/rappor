@@ -347,9 +347,10 @@ GenerateSamples <- function(params,
                             map_hsts, map_nohttps, map_https,
                             map_hsts_apprx, map_nohttps_apprx, map_https_apprx,
                             rappors_hsts, rappors_nohttps) {
-  threshold <- decoding_params[[1]]
-  primary_decision <- DecisionFunctions(params, decoding_params[[2]])
-  secondary_decision <- DecisionFunctions(params, decoding_params[[3]])
+  threshold_hsts <- decoding_params[[1]]
+  threshold_nohttps <- decoding_params[[2]]
+  primary_decision <- DecisionFunctions(params, decoding_params[[3]])
+  secondary_decision <- DecisionFunctions(params, decoding_params[[4]])
 
   # merge maps map_hsts + map_https_apprx + map_nohttps
   map_merged <- cbind(map_hsts_apprx, map_https_apprx, map_nohttps_apprx)
@@ -357,7 +358,7 @@ GenerateSamples <- function(params,
   # ind <- sample(1:length(map_merged), length(map_merged))
   # map_merged <- map_merged[, ind]
 
-  fit_hsts <- Decode(rappors_hsts, map_merged, params, threshold, decision_func = primary_decision)
+  fit_hsts <- Decode(rappors_hsts, map_merged, params, threshold_hsts, decision_func = primary_decision)
 
   hsts_tp <-strs_hsts[na.omit(match(fit_hsts$found, strs_hsts))]
   hsts_fp <-strs_nohttps[na.omit(match(fit_hsts$found, strs_nohttps))]
@@ -391,7 +392,7 @@ GenerateSamples <- function(params,
   map_merged_positive <- cbind(map_tp_apprx, map_softfp_apprx, map_fp_apprx)
   fit_nohttps <- NULL
   if(ncol(map_merged_positive) != 0) {
-    fit_nohttps <- Decode(rappors_nohttps, map_merged_positive, params, threshold, decision_func = secondary_decision)
+    fit_nohttps <- Decode(rappors_nohttps, map_merged_positive, params, threshold_nohttps, decision_func = secondary_decision)
     fit_nohttps$fit$Truth <- apply(fit_nohttps$fit, 1, function(r) {r[1] %in% strs_nohttps})
 
     fit_nohttps$map <- map_nohttps$map_by_cohort

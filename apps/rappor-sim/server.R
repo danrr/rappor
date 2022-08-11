@@ -49,7 +49,9 @@ shinyServer(function(input, output) {
   })
 
   DecodingParams <- reactive({
-    list(as.numeric(input$threshold),
+    list(
+      as.numeric(input$threshold_hsts),
+      as.numeric(input$threshold_nohttps),
       input$primary_decision,
       input$secondary_decision
     )

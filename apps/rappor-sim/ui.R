@@ -68,7 +68,10 @@ shinyUI(pageWithSidebar(
                                                           br()
                                                  ),
                                                  tabPanel("Decoding",
-                                                          sliderInput("threshold", "Count threshold ",
+                                                          sliderInput("threshold_hsts", "HSTS threshold ",
+                                                                      min = 0.001, max = 0.2, value = 0.005, step = 0.001),
+                                                          br(),
+                                                          sliderInput("threshold_nohttps", "HTTPS threshold ",
                                                                       min = 0.001, max = 0.2, value = 0.005, step = 0.001),
                                                           br(),
                                                           sliderInput("missing", "Proportion of non-zero strings missing from decoding:",

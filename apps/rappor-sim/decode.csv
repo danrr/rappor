@@ -1,2 +1,2 @@
-threshold,primary_decision,secondary_decision
-0.002,majority,majority
+threshold_hsts,threshold_nohttps,primary_decision,secondary_decision
+0.002,0.002,majority,majority
