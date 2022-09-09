@@ -8,3 +8,5 @@ secondary_decisions = ['any','all']
 
 populations = [300]
 samples = [30000]
+
+num_jobs = 1

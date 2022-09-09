@@ -1,8 +1,8 @@
 import subprocess
 import os, sys
-from simulation_params import numbers_of_cohorts, filter_sizes, primary_decisions, secondary_decisions, primary_threshold_values, secondary_threshold_values, populations, samples
+from simulation_params import numbers_of_cohorts, filter_sizes, primary_decisions, secondary_decisions, primary_threshold_values, secondary_threshold_values, populations, samples, num_jobs
 import itertools
-
+import numpy as np
 
 def delete_map():
     try:
@@ -63,7 +63,12 @@ decode_params = [0.001, "majority", "any"]
 
 # Obviously this next bit is completely horrific but it was quick to do
 params_set = itertools.product(filter_sizes, numbers_of_cohorts, populations, samples)
-for p in params_set:
+params_list = list(params_set)
+job_params_list = np.array_split(params_list, num_jobs)
+
+job_number = int(os.environ['SGE_TASK_ID'])
+
+for p in job_params_list[job_number-1]:
     params[0] = p[0]
     params[2] = p[1]
     pop_params[0] = p[2]
