@@ -1,6 +1,6 @@
 import subprocess
 import os, sys
-from simulation_params import numbers_of_cohorts, filter_sizes, primary_decisions, secondary_decisions, threshold_values, populations, samples
+from simulation_params import numbers_of_cohorts, filter_sizes, primary_decisions, secondary_decisions, primary_threshold_values, secondary_threshold_values, populations, samples
 import itertools
 
 
@@ -72,11 +72,11 @@ for p in params_set:
     delete_map()
     write_params(params)
     # Create all possible permutations of decode params
-    decode_params_set = itertools.product(threshold_values, primary_decisions, secondary_decisions)
+    decode_params_set = itertools.product(primary_threshold_values, secondary_threshold_values, primary_decisions, secondary_decisions)
     for d in decode_params_set:
         sim_results.append((run_sim(d), params.copy(), list(d).copy(), pop_params.copy()))
 
-print("disasters, success, filter_size, cohort_size, threshold, primary dec, secondary dec, population size, sample size")
+print("disasters, success, filter_size, cohort_size, primary_threshold, secondary_threshold, primary dec, secondary dec, population size, sample size")
 for x in sim_results:
     print(x[0], end=',')
     print(str(x[1][0]) + ', ' + str(x[1][2]) + ", " + str(', '.join([str(s) for s in x[2]])) + ', ' + str(x[3][0]) + ', ' + str(x[3][7]))
