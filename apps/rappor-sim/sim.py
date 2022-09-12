@@ -10,7 +10,7 @@ pop_params_string = f'pop_params_{job_number}.csv'
 
 def delete_map():
     try:
-        os.remove('map.Rdata')
+        os.remove('map_{job_number}.Rdata')
     except FileNotFoundError: 
         print("Error: couldn't remove the map file, sim probabily failed", file=sys.stderr)
 
@@ -48,7 +48,7 @@ def run_sim(decode_params):
 
     new_env = os.environ.copy()
     new_env["RAPPOR_REPO"] = "../../"
-    bashCommand = f"Rscript cli.R map.Rdata {params_string} {pop_params_string} {decode_string}"
+    bashCommand = f"Rscript cli.R map{job_number}.Rdata {params_string} {pop_params_string} {decode_string}"
     process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE, env=new_env)
     output, error = process.communicate()
 
