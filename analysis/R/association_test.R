@@ -171,7 +171,7 @@ TestComputeDistributionEM <- function() {
     locs <- which(map$all_cohorts_map[, 1])
     colnames(small_map$map_by_cohort[[i]]) <- sim$strs[1]
   }
-  small_map$all_cohorts_map <- do.call("rBind", small_map$map_by_cohort)
+  small_map$all_cohorts_map <- do.call("rbind", small_map$map_by_cohort)
 
   dist <- ComputeDistributionEM(list(sim$reports[[1]]),
                                 list(sim$cohorts[[1]]),

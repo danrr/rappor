@@ -158,7 +158,7 @@ UpdateMapWithCandidates <- function(str_candidates, sim, params) {
     updated_map$all_cohorts_map <- Matrix(updated_map$all_cohorts_map, sparse = TRUE)
     colnames(updated_map$all_cohorts_map) <- c(valid_cands, new_cands)
   } else {
-    updated_map$all_cohorts_map <- do.call("rBind", updated_map$map_by_cohort)
+    updated_map$all_cohorts_map <- do.call("rbind", updated_map$map_by_cohort)
   }
   updated_map
 }

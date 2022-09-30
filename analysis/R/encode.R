@@ -115,14 +115,30 @@ ExamplePlot <- function(res, k, ebs = 1, title = "", title_cex = 4,
   legend("topleft", legend = ebs, plot = FALSE)
 }
 
-PlotPopulation <- function(probs, detected, detection_frequency) {
-    cc <- c("gray80", "darkred")
+PlotPopulation <- function(samp) {
+    probs <- samp$hsts$probs
+    strs_full <- samp$hsts$strs_full
+    of_interest <- match(samp$hsts$strs, strs_full)
+    detected <- match(intersect(samp$hsts$found, samp$hsts$strs), strs_full)
+    false_pos_strs <- intersect(samp$hsts$found, samp$nohttps$strs_nohttps)
+    detected_fp <- match(false_pos_strs, strs_full)
+    detected_nohttps <- NULL
+    if (!is.null(samp$nohttps)) {
+      detected_nohttps <- match(intersect(samp$nohttps$found, false_pos_strs), strs_full)
+    }
+    detection_frequency <- samp$hsts$privacy[7, 2]
+    cc <- c("gray80", "gray50", "blue", "darkred", "green")
     color <- rep(cc[1], length(probs))
-    color[detected] <- cc[2]
+    color[of_interest] <- cc[2]
+    color[detected] <- cc[3]
+    color[detected_fp] <- cc[4]
+    if (!is.null(detected_nohttps)) {
+      color[detected_nohttps] <- cc[5]
+    }
     bp <- barplot(probs, col = color, border = color)
     inds <- c(1, c(max(which(probs > 0)), length(probs)))
     axis(1, bp[inds], inds)
-    legend("topright", legend = c("Detected", "Not-detected"),
+    legend("topright", legend = c("Detected false positive", "False positive", "Detected", "Not-detected", "Not of interest (https)"),
            fill = rev(cc), bty = "n")
     abline(h = detection_frequency, lty = 2, col = "grey")
 }

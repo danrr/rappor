@@ -57,7 +57,7 @@ class RapporParamsTest(unittest.TestCase):
     self.assertRaises(rappor.Error, rappor.Params.from_csv, f)
 
   def testGetBloomBits(self):
-    for cohort in xrange(0, 64):
+    for cohort in range(0, 64):
       b = rappor.get_bloom_bits('foo', cohort, 2, 16)
       #print 'cohort', cohort, 'bloom', b
 
@@ -66,11 +66,11 @@ class RapporParamsTest(unittest.TestCase):
     num_bits = 8
     for word in ('v1', 'v2', 'v3'):
       masks = rappor.get_prr_masks('secret', word, 0.5, num_bits)
-      print 'masks', masks
+      print('masks', masks)
 
   def testToBigEndian(self):
     b = rappor.to_big_endian(1)
-    print repr(b)
+    print(repr(b))
     self.assertEqual(4, len(b))
 
   def testEncoder(self):
@@ -85,7 +85,7 @@ class RapporParamsTest(unittest.TestCase):
 
     e = rappor.Encoder(params, 0, 'secret', rand)
 
-    irr = e.encode("abc")
+    irr = e.encode(b"abc")
 
     self.assertEquals(64493, irr)  # given MockRandom, this is what we get
 

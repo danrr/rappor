@@ -192,7 +192,7 @@ shinyServer(function(input, output, session) {
                                 include.rownames = FALSE)
 
   output$example_counts <- renderTable({
-    counts <- ReadCountsFile("counts.csv")[, 1:15]
+    counts <- ReadCountsFile("counts.csv", Params())[, 1:15]
     cbind(counts, rep("...", nrow(counts)))
   },
                                 include.rownames = FALSE, include.colnames = FALSE)

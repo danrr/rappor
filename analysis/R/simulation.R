@@ -15,42 +15,52 @@
 #
 # RAPPOR simulation library. Contains code for encoding simulated data and
 #     creating the map used to encode and decode reports.
+suppressPackageStartupMessages(library(glmnet))
+suppressPackageStartupMessages(library(parallel))  # mclapply
 
-library(glmnet)
-library(parallel)  # mclapply
-
-SetOfStrings <- function(num_strings = 100) {
+SetOfSites <- function(num_sites = 100, proportion_https = 0.7, proportion_hsts_of_https = 0.3) {
   # Generates a set of strings for simulation purposes.
-  strs <- paste0("V_", as.character(1:num_strings))
-  strs
+  # urls <- paste0("V_", as.character(1:num_sites), sample(c(".com", ".co.uk", ".fr"), num_sites, replace=TRUE))
+  urls <- read.csv('./majestic_million.csv',nrows=num_sites)$Domain
+  https <- as.logical(rbinom(n=num_sites, size=1, prob=proportion_https))
+  sites <- data.frame(url=urls, https=https)
+  sites$hsts <- sites$https & as.logical(rbinom(n=num_sites, size=1, prob=proportion_hsts_of_https))
+  sites
 }
 
-GetSampleProbs <- function(params) {
+GetSampleProbs <- function(pop_params) {
   # Generate different underlying distributions for simulations purposes.
   # Args:
-  #    - params: a list describing the shape of the true distribution:
+  #    - pop_params: a list describing the shape of the true distribution:
   #              c(num_strings, prop_nonzero_strings, decay_type,
-  #                rate_exponetial).
-  nstrs <- params[[1]]
-  nonzero <- params[[2]]
-  decay <- params[[3]]
-  expo <- params[[4]]
-  background <- params[[5]]
+  #                rate_exponential).
+  nsites <- pop_params[[1]]
+  decay <- pop_params[[5]]
+  expo <- pop_params[[6]]
+  background <- pop_params[[7]]
 
-  probs <- rep(0, nstrs)
-  ind <- floor(nstrs * nonzero)
-  if (decay == "Linear") {
+  probs <- rep(0, nsites)
+  ind <- floor(nsites)
+  if (decay == "Measured") {
+    temp <- read.csv('./majestic_million.csv',nrows=ind)$RefSubNets
+    probs[1:ind] <- temp/sum(temp)
+  }
+  else if (decay == "Zipf") {
+    temp <- 1.13/(1:ind) # todo Dan: maybe have a parameter, but 1 for now
+    probs[1:ind] <- temp/sum(temp)
+  }
+  else if (decay == "Linear") {
     probs[1:ind] <- (ind:1) / sum(1:ind)
   } else if (decay == "Constant") {
     probs[1:ind] <- 1 / ind
   } else if (decay == "Exponential") {
-    temp <- seq(0, nonzero, length.out = ind)
+    temp <- seq(0, 1, length.out = ind)
     temp <- exp(-temp * expo)
     temp <- temp + background
     temp <- temp / sum(temp)
     probs[1:ind] <- temp
   } else {
-    stop('params[[4]] must be in c("Linear", "Exponenential", "Constant")')
+    stop('pop_params[[5]] must be in c("Linear", "Exponenential", "Constant", "Measured", "Zipf")')
   }
   probs
 }
@@ -116,12 +126,11 @@ CreateMap <- function(strs, params, generate_pos = TRUE, basic = FALSE) {
   #        positions of the nonzeros in the matrix
   #    basic: Tells whether to use basic RAPPOR (only works if h=1).
 
-  M <- length(strs)
+  M <- length(strs) # number of individual reports
   map_by_cohort <- list()
-  k <- params$k
-  h <- params$h
-  m <- params$m
-
+  k <- params$k # size of the bloom filter instance
+  h <- params$h # number of hash functions
+  m <- params$m # number of cohorts
   for (i in 1:m) {
     if (basic && (h == 1) && (k == M)) {
       ones <- 1:M
@@ -133,7 +142,7 @@ CreateMap <- function(strs, params, generate_pos = TRUE, basic = FALSE) {
     colnames(map_by_cohort[[i]]) <- strs
   }
 
-  all_cohorts_map <- do.call("rBind", map_by_cohort)
+  all_cohorts_map <- do.call("rbind", map_by_cohort)
   if (generate_pos) {
     map_pos <- t(apply(all_cohorts_map, 2, function(x) {
       ind <- which(x == 1)
@@ -151,9 +160,9 @@ CreateMap <- function(strs, params, generate_pos = TRUE, basic = FALSE) {
        map_pos = map_pos)
 }
 
-GetSample <- function(N, strs, probs) {
-  # Sample for the strs population with distribution probs.
-  sample(strs, N, replace = TRUE, prob = probs)
+GetSample <- function(N, sites, probs) {
+  # Sample for the sites population with distribution probs.
+  sites[sample(nrow(sites), N, replace = TRUE, prob = probs),]
 }
 
 GetTrueBits <- function(samp, map, params) {
@@ -208,7 +217,7 @@ GetNoisyBits <- function(truth, params) {
     # Lies when there is no signal which happens x[1] - x[-1] times.
     lied_nosignal <- rbinom(k, x[1] - x[-1], f)
 
-    # Trtuh when there's no signal. These are sampled with p.
+    # Truth when there's no signal. These are sampled with p.
     truth_nosignal <- x[1] - x[-1] - lied_nosignal
 
     # Total lies and sampling lies with 50/50 for either p or q.
@@ -223,46 +232,195 @@ GetNoisyBits <- function(truth, params) {
   cbind(truth[, 1], t(rappors))
 }
 
-GenerateSamples <- function(N = 10^5, params, pop_params, alpha = .05,
-                            prop_missing = 0,
-                            correction = "Bonferroni") {
+GenerateMaps <- function(N = 10^5, params, pop_params, prop_missing = 0) {
   # Simulate N reports with pop_params describing the population and
   # params describing the RAPPOR configuration.
-  num_strings = pop_params[[1]]
+  # N - Number of samples
+  num_sites <- pop_params[[1]]
+  proportion_https <- pop_params[[2]]
+  proportion_hsts_of_https <- pop_params[[3]]
 
-  strs <- SetOfStrings(num_strings)
-  probs <- GetSampleProbs(pop_params)
-  samp <- GetSample(N, strs, probs)
-  map <- CreateMap(strs, params)
-  truth <- GetTrueBits(samp, map$map_by_cohort, params)
-  rappors <- GetNoisyBits(truth, params)
+  sites <- SetOfSites(num_sites, proportion_https, proportion_hsts_of_https) # Creates a list of sites with HSTS and HTTPS bits
+  probs <- GetSampleProbs(pop_params) # creates a probability distribution for sampling sites
 
-  strs_apprx <- strs
-  map_apprx <- map$all_cohorts_map
+  samp <- GetSample(N, sites, probs) # Samples sites according to the distribution
+
+  samp_hsts <- samp[samp$hsts == 1,]$url # Selects sampled sites that have hsts
+  samp_nohttps <- samp[samp$https == 0,]$url # Selects sampled sites that have nohttps
+
+  strs_hsts <- sites[sites$hsts == 1,]$url # Selects sites that have hsts
+  strs_nohttps <- sites[sites$https == 0,]$url # Selects sites that are nohttps
+  strs_https <- sites[sites$https == 1 & sites$hsts == 0,]$url # Selects sites that are https but not hsts
+
+
+  # hsts
+  map_hsts <- CreateMap(strs_hsts, params) # creates a random map of sites
+  truth_hsts <- GetTrueBits(samp_hsts, map_hsts$map_by_cohort, params) # creates true bloom filter per cohort; first column counts total per row
+  rappors_hsts <- GetNoisyBits(truth_hsts, params) # creates noisy bloom filter per cohort; first column counts total per row BEFORE NOISE
+
+  # nohttps
+  map_nohttps <- CreateMap(strs_nohttps, params)
+  truth_nohttps <- GetTrueBits(samp_nohttps, map_nohttps$map_by_cohort, params)
+  rappors_nohttps <- GetNoisyBits(truth_nohttps, params)
+
+  # nohsts
+  map_https <- CreateMap(strs_https, params)
+
+  strs_hsts_apprx <- strs_hsts
+  map_hsts_apprx <- map_hsts$all_cohorts_map
   # Remove % of strings to simulate missing variables.
   if (prop_missing > 0) {
     ind <- which(probs > 0)
     removed <- sample(ind, ceiling(prop_missing * length(ind)))
-    map_apprx <- map$all_cohorts_map[, -removed]
-    strs_apprx <- strs[-removed]
+    map_hsts_apprx <- map_hsts$all_cohorts_map[, -removed]
+    strs_hsts_apprx <- strs_hsts[-removed]
+  }
+  strs_nohttps_apprx <- strs_nohttps
+  map_nohttps_apprx <- map_nohttps$all_cohorts_map
+  # Remove % of strings to simulate missing variables.
+  if (prop_missing > 0) {
+    ind <- which(probs > 0)
+    removed <- sample(ind, ceiling(prop_missing * length(ind)))
+    map_nohttps_apprx <- map_nohttps$all_cohorts_map[, -removed]
+    strs_nohttps_apprx <- strs_nohttps[-removed]
+  }
+  strs_https_apprx <- strs_https
+  map_https_apprx <- map_https$all_cohorts_map
+  # Remove % of strings to simulate missing variables.
+  if (prop_missing > 0) {
+    ind <- which(probs > 0)
+    removed <- sample(ind, ceiling(prop_missing * length(ind)))
+    map_https_apprx <- map_https$all_cohorts_map[, -removed]
+    strs_https_apprx <- strs_https[-removed]
   }
 
   # Randomize the columns.
-  ind <- sample(1:length(strs_apprx), length(strs_apprx))
-  map_apprx <- map_apprx[, ind]
-  strs_apprx <- strs_apprx[ind]
+  ind <- sample(1:length(strs_hsts_apprx), length(strs_hsts_apprx))
+  map_hsts_apprx <- map_hsts_apprx[, ind]
 
-  fit <- Decode(rappors, map_apprx, params, alpha = alpha,
-                correction = correction)
+  ind <- sample(1:length(strs_nohttps_apprx), length(strs_nohttps_apprx))
+  map_nohttps_apprx <- map_nohttps_apprx[, ind]
+
+  ind <- sample(1:length(strs_https_apprx), length(strs_https_apprx))
+  map_https_apprx <- map_https_apprx[, ind]
+
+  list(sites = sites,
+       probs = probs,
+       strs_hsts=strs_hsts,
+       strs_nohttps=strs_nohttps,
+       strs_https=strs_https,
+       strs_hsts_apprx = strs_hsts_apprx,
+       strs_https_apprx = strs_https_apprx,
+       strs_nohttps_apprx = strs_nohttps_apprx,
+       truth_hsts=truth_hsts,
+       truth_nohttps=truth_nohttps,
+       map_hsts = map_hsts,
+       map_nohttps = map_nohttps,
+       map_https = map_https,
+       map_hsts_apprx=map_hsts_apprx,
+       map_nohttps_apprx=map_nohttps_apprx,
+       map_https_apprx=map_https_apprx,
+       rappors_hsts=rappors_hsts,
+       rappors_nohttps=rappors_nohttps
+  )
+}
+
+DecisionFunctions <- function(params, func) {
+  decision_func <- function(answer) {TRUE}
+  if (func == "any") {
+    decision_func <- function(answer) any(answer)
+  } else if (func == "all") {
+    decision_func <- function(answer) all(answer)
+  } else if (func == "all") {
+    decision_func <- function(answer) {sum(answer) >  params$m / 2}
+  }
+  decision_func
+}
+
+GenerateSamples <- function(params,
+                            decoding_params,
+                            sites,
+                            probs,
+                            strs_hsts, strs_nohttps, strs_https,
+                            strs_hsts_apprx, strs_https_apprx, strs_nohttps_apprx,
+                            truth_hsts, truth_nohttps,
+                            map_hsts, map_nohttps, map_https,
+                            map_hsts_apprx, map_nohttps_apprx, map_https_apprx,
+                            rappors_hsts, rappors_nohttps) {
+  threshold_hsts <- decoding_params[[1]]
+  threshold_nohttps <- decoding_params[[2]]
+  primary_decision <- DecisionFunctions(params, decoding_params[[3]])
+  secondary_decision <- DecisionFunctions(params, decoding_params[[4]])
+
+  # merge maps map_hsts + map_https_apprx + map_nohttps
+  map_merged <- cbind(map_hsts_apprx, map_https_apprx, map_nohttps_apprx)
+  # todo Dan: what is wrong with this?
+  # ind <- sample(1:length(map_merged), length(map_merged))
+  # map_merged <- map_merged[, ind]
+
+  fit_hsts <- Decode(rappors_hsts, map_merged, params, threshold_hsts, decision_func = primary_decision)
+
+  hsts_tp <-strs_hsts[na.omit(match(fit_hsts$found, strs_hsts))]
+  hsts_fp <-strs_nohttps[na.omit(match(fit_hsts$found, strs_nohttps))]
+  hsts_soft_fp <-strs_https[na.omit(match(fit_hsts$found, strs_https))]
 
   # Add truth column.
-  fit$fit$Truth <- table(samp)[fit$fit$string]
-  fit$fit$Truth[is.na(fit$fit$Truth)] <- 0
+  fit_hsts$fit$Truth <- apply(fit_hsts$fit, 1, function(r) {r[1] %in% strs_hsts})
 
-  fit$map <- map$map_by_cohort
-  fit$truth <- truth
-  fit$strs <- strs
-  fit$probs <- probs
+ fit_hsts$summary <- rbind(
+			       fit_hsts$summary[1:1,],
+			           c(",HSTS strings", length(strs_hsts_apprx)),
+			           c(",HTTPS strings,", length(strs_https_apprx)),
+				       c(",No HTTPS Strings,", length(strs_nohttps_apprx)),
+				       fit_hsts$summary[2:2,],
+				           c(",HSTS strings found (True positives) in B1,", length(intersect(fit_hsts$found, strs_hsts))),
+				           c(",HTTPS strings found (Soft false positives) in B1,", length(intersect(fit_hsts$found, strs_https))),
+					       c(",No HTTPS strings found (Bad false positives) in B1,", length(intersect(fit_hsts$found, strs_nohttps))),
+					       fit_hsts$summary[3:nrow(fit_hsts$summary),]
+					         )
 
-  fit
+  fit_hsts$map <- map_hsts$map_by_cohort
+  fit_hsts$truth <- truth_hsts
+  fit_hsts$strs_full <- sites$url
+  fit_hsts$strs <- strs_hsts
+  fit_hsts$probs <- probs
+
+  # Can we identify false positives as part of the rappors_nohttps?
+  map_tp_apprx <- as(map_hsts_apprx[, hsts_tp, drop=FALSE], "sparseMatrix")
+  map_softfp_apprx <- as(map_https_apprx[, hsts_soft_fp, drop=FALSE], "sparseMatrix")
+  map_fp_apprx <- as(map_nohttps_apprx[, hsts_fp, drop=FALSE], "sparseMatrix")
+  map_merged_positive <- cbind(map_tp_apprx, map_softfp_apprx, map_fp_apprx)
+  fit_nohttps <- NULL
+  if(ncol(map_merged_positive) != 0) {
+    fit_nohttps <- Decode(rappors_nohttps, map_merged_positive, params, threshold_nohttps, decision_func = secondary_decision)
+    fit_nohttps$fit$Truth <- apply(fit_nohttps$fit, 1, function(r) {r[1] %in% strs_nohttps})
+
+    fit_nohttps$map <- map_nohttps$map_by_cohort
+    fit_nohttps$truth <- truth_nohttps
+    fit_nohttps$strs_nohttps <- strs_nohttps
+fit_hsts$summary <- rbind(
+			        fit_hsts$summary,
+				      c(",HSTS strings found in B2 (no benefit),", length(intersect(fit_nohttps$found, strs_hsts))),
+				      c(",HTTPS strings found in B2,", length(intersect(fit_nohttps$found, strs_https))),
+				            c(", disaster,", length(hsts_fp) - length(intersect(fit_nohttps$found, strs_nohttps))),
+				            c(",No HTTPS strings found (disaster averted) in B2,", length(intersect(fit_nohttps$found, strs_nohttps))),
+					          c(", benefit,", length(hsts_tp) - length(intersect(fit_nohttps$found, strs_hsts)))
+					        )
+     }
+  fits <- list("hsts" = fit_hsts, "nohttps" = fit_nohttps, "sites" = sites)
+  fits
 }
+# params <- list(k = 128, # size of the bloom filter instance
+#          h = 2, # number of hash functions
+#          m = 8, # number of cohorts
+#          p = 0.5,
+#          q = 0.75,
+#          f = 0.5)
+# pop_params <- list(300, #nsites
+#       0.7, #nhttps
+#       0.3, #nhsts
+#       0.5, #nonzero
+#       "Exponential", #decay
+#       10, #expo
+#       0.05 #background
+#       )

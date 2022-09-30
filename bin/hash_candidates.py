@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 #
 # Copyright 2014 Google Inc. All rights reserved.
 #
@@ -25,40 +25,40 @@ import rappor
 
 
 def HashCandidates(params, stdin, stdout):
-  num_bloombits = params.num_bloombits
-  csv_out = csv.writer(stdout)
+    num_bloombits = params.num_bloombits
+    csv_out = csv.writer(stdout)
 
-  for line in stdin:
-    word = line.strip()
-    row = [word]
-    for cohort in xrange(params.num_cohorts):
-      bloom_bits = rappor.get_bloom_bits(word, cohort, params.num_hashes,
-                                         num_bloombits)
-      for bit_to_set in bloom_bits:
-        # bits are indexed from 1.  Add a fixed offset for each cohort.
-        # NOTE: This detail could be omitted from the map file format, and done
-        # in R.
-        row.append(cohort * num_bloombits + (bit_to_set + 1))
-    csv_out.writerow(row)
+    for line in stdin:
+        word = line.strip().encode('utf-8')
+        row = [word]
+        for cohort in range(params.num_cohorts):
+            bloom_bits = rappor.get_bloom_bits(word, cohort, params.num_hashes,
+                                               num_bloombits)
+            for bit_to_set in bloom_bits:
+                # bits are indexed from 1.  Add a fixed offset for each cohort.
+                # NOTE: This detail could be omitted from the map file format, and done
+                # in R.
+                row.append(cohort * num_bloombits + (bit_to_set + 1))
+        csv_out.writerow(row)
 
 
 def main(argv):
-  try:
-    filename = argv[1]
-  except IndexError:
-    raise RuntimeError('Usage: hash_candidates.py <params file>')
-  with open(filename) as f:
     try:
-      params = rappor.Params.from_csv(f)
-    except rappor.Error as e:
-      raise RuntimeError(e)
+        filename = argv[1]
+    except IndexError:
+        raise RuntimeError('Usage: hash_candidates.py <params file>')
+    with open(filename) as f:
+        try:
+            params = rappor.Params.from_csv(f)
+        except rappor.Error as error:
+            raise RuntimeError(error)
 
-  HashCandidates(params, sys.stdin, sys.stdout)
+    HashCandidates(params, sys.stdin, sys.stdout)
 
 
 if __name__ == '__main__':
-  try:
-    main(sys.argv)
-  except RuntimeError, e:
-    print >>sys.stderr, e.args[0]
-    sys.exit(1)
+    try:
+        main(sys.argv)
+    except RuntimeError as e:
+        print(e.args[0], file=sys.stderr)
+        sys.exit(1)
